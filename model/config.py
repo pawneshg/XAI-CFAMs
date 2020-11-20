@@ -7,7 +7,7 @@ import os
 # [coco_dataset]
 base_dir = "/netscratch/kumar/cam"
 train_meta_file = os.path.join(base_dir, "coco_train2017_dataset_metadata.txt")
-val_meta_file = os.path.join(base_dir, "/coco_val2017_dataset_metadata.txt")
+val_meta_file = os.path.join(base_dir, "coco_val2017_dataset_metadata.txt")
 class_ids = [4, 5, 6, 7, 9, 15, 16, 17, 19, 21,
              22, 24, 25, 28, 52, 54, 56, 59, 61,
              65, 70, 79, 86, 88]
