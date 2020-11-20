@@ -1,83 +1,71 @@
 import os
-import json
-from torch.utils.data.dataset import Dataset
-
-class CocoDataset(Dataset):
-
-    def __init__(self, data, transform, img_folder_loc):
-        self.data = data
-        self.transform = transform
-        self.ids = list(self.data.keys())
-        self.img_folder_loc = img_folder_loc
-
-    def __getitem__(self, index):
-        img_id = self.ids[index]
-        img_path = self.data[img_id]["file_name"]
-        img = Image.open(os.path.join(self.img_folder_loc, img_path))
-        img = img.convert("RGB")
-        cat = self.data[img_id]["category_id"]
+import torch
 
 
+def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, device='cpu', start_epoch=0,
+                  checkpoints=False, out_dir=None):
+    """Model training"""
+    training_cycles = dict(loss=[], acc=[], val_loss=[], val_acc=[])
+    best_epoch, best_acc = 0, 0.0
 
-def coco_data_transform(input_size, data_type):
-    """data augmentation and data shaping."""
-    val_transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(input_size),
-            transforms.ToTensor()
-        ])
-    train_transform = transforms.Compose([
-            transforms.RandomSizedCrop(input_size),
-            transforms.RandomHorizontalFlip(),
-            transforms.ToTensor()
-        ])
-    return train_transform if data_type == "train" else val_transform
+    for epoch_ in range(start_epoch, start_epoch + num_epochs):
 
+        print("Epoch %d " % (epoch_ + 1))
 
-def load_mscoco_metadata(meta_data_file):
-    """load mscoco dataset metadata """
-    with open(meta_data_file) as json_file:
-        data = json.load(json_file)
-    return data
+        print("Training ")
+        correct, avg_loss, total = 0, 0, 0
+        network.train()
 
+        for batch_x, batch_y in train_iter:
+            optimizer.zero_grad()  # initialized zero gradient
+            batch_x = batch_x.to(device)
+            batch_y = batch_y.to(device)
+            res = network(batch_x)
+            l = loss(res, batch_y)
+            l.backward()
+            optimizer.step()
+            res = torch.argmax(res, dim=-1)
+            correct += torch.sum(res == batch_y).data.cpu().numpy()
+            total += batch_x.shape[0]
+            avg_loss += l.item()
+        loss_ = avg_loss / total
+        acc_ = correct/total
+        print("Loss: ", loss_)
+        print("Acc:", acc_)
 
-def init_coco_dataset(meta_file, img_folder_loc, data_type="val", model_name="resnet18"):
-    """ preprocess the coco dataset """
-    if model_name == "resnet18":
-        data = load_mscoco_metadata(meta_file)
-        transform = coco_data_transform(input_size=224, data_type=data_type)
-        dataset = CocoDataset(data, transform, img_folder_loc=img_folder_loc)
-        return dataset
+        training_cycles['loss'].append(avg_loss / total)
+        training_cycles['acc'].append(correct / total)
 
+        ## Validation
+        print("Validation ", flush=True)
+        network.eval()
+        correct, avg_loss, total = 0, 0, 0
 
+        with torch.no_grad():
+            for batch_x, batch_y in val_iter:
+                batch_x = batch_x.to(device)
+                batch_y = batch_y.to(device)
+                res = network(batch_x)
+                l = loss(res, batch_y)
+                res = torch.argmax(res, dim=-1)
+                correct += torch.sum(res == batch_y).data.cpu().numpy()
+                total += batch_x.shape[0]
+                avg_loss += l.data.cpu().numpy() * batch_x.shape[0]
+            loss_ = avg_loss / total
+            acc_ = correct / total
+            print("Loss: ", loss_)
+            print("Acc:", acc_)
 
-def main_train_with_coco_dataset():
-    """Train model with mscoco dataset."""
-    base_dir = "/netscratch/kumar/proj"
-    train_meta_file = os.path.join(base_dir, "coco_train2017_dataset_metadata.txt")
-    val_meta_file = os.path.join(base_dir, "/coco_val2017_dataset_metadata.txt")
-    class_ids = [4, 5, 6, 7, 9, 15, 16, 17, 19, 21,
-                 22, 24, 25, 28, 52, 54, 56, 59, 61,
-                 65, 70, 79, 86, 88]
-    target_label_mapping = {val:ind_ for ind_, val in enumerate(class_ids)}
-    target_labels = list(target_label_mapping.values())
+        training_cycles['val_loss'].append(avg_loss / total)
+        training_cycles['val_acc'].append(correct / total)
+        if (correct / total) > best_acc:
+            best_epoch = epoch_
+            best_acc = correct / total
+        if checkpoints and out_dir is not None:
+            if not os.path.isdir(out_dir):
+                os.makedirs(out_dir)
+            save_path = os.path.join(out_dir, 'weight_snap_%03d.pth' % (epoch_ + 1))
+            torch.save(network.state_dict(), save_path)
 
-    train_dataset = init_coco_dataset(train_meta_file, img_folder_loc=train_data_dir, data_type="train", model_name="resnet18")
-    val_dataset = init_coco_dataset(val_meta_file, img_folder_loc=val_data_dir, data_type="val", model_name="resnet18")
-
-
-
-
-if __name__ == "__main__":
-    base_dir = "/netscratch/kumar/proj"
-    data_dir = "/ds/images/MSCOCO2017/"
-    out_dir = os.path.join(base_dir, "model")
-    train_data_dir = os.path.join(data_dir, "train2017")
-    val_data_dir = os.path.join(data_dir, "val2017")
-    load_path = None
-    checkpoints = True
-    start_epoch = 0
-
-
-
-
+    print("Best epoch %d , validation _accuracy %.2f" % (best_epoch + 1, best_acc * 100))
+    return training_cycles
