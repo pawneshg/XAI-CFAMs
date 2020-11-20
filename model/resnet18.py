@@ -31,7 +31,7 @@ def resnet18():
     model.to(device)
     train_data_iter, val_data_iter = get_coco_dataset_iter()
     loss = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-1, momentum=9e-1, nesterov=True)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-1, momentum=9e-1)
 
     if weights_load_path is not None:
         state_dict = torch.load(weights_load_path)
