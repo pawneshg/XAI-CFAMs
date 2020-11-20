@@ -31,15 +31,19 @@ class CocoDataset(Dataset):
 
 def coco_data_transform(input_size, data_type):
     """data augmentation and data shaping."""
+    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])
     val_transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(input_size),
-            transforms.ToTensor()
+            transforms.ToTensor(),
+            normalize,
         ])
     train_transform = transforms.Compose([
-            transforms.RandomSizedCrop(input_size),
             transforms.RandomHorizontalFlip(),
-            transforms.ToTensor()
+            transforms.RandomResizedCrop(input_size),
+            transforms.ToTensor(),
+            normalize,
         ])
     return train_transform if data_type == "train" else val_transform
 
@@ -61,7 +65,7 @@ def init_coco_dataset(meta_file, img_folder_loc, target_label_mapping, data_type
 
 
 def initialize_dataloader(dataset, batch_size, shuffle, num_workers):
-    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers)
+    data_loader = DataLoader(dataset, batch_size=batch_size, shuffle=shuffle, num_workers=num_workers, pin_memory=True)
     return data_loader
 
 
