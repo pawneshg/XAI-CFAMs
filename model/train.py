@@ -12,7 +12,7 @@ def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, de
 
         print("Epoch %d " % (epoch_ + 1))
 
-        print("Training ")
+        print(" Training ")
         correct, avg_loss, total = 0, 0, 0
         network.train()
 
