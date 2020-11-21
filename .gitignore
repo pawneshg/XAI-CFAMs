@@ -1,0 +1,6 @@
+run.sh
+output.txt
+nohup.out
+*/__pycache__/*
+model/weights/weight_snap_*.pth
+!model/weights/weight_snap_156.pth
