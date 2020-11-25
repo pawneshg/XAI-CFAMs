@@ -1,16 +1,19 @@
 import os
 import json
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, random_split
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from PIL import Image
 from model.config import (train_meta_file, val_meta_file, class_ids, train_data_dir, val_data_dir, num_workers,
-                          batch_size)
+                          batch_size, data_dir)
+# from data_handler.extract_coco_metainfo import CocoCam
+
 
 
 class CocoDataset(Dataset):
 
     def __init__(self, data, transform, img_folder_loc, target_label_mapping):
+        # Todo: Fetch the data from coco api,
         self.data = data
         self.transform = transform
         self.ids = list(self.data.keys())
@@ -76,10 +79,26 @@ def get_coco_dataset_iter():
 
     train_dataset = init_coco_dataset(train_meta_file, train_data_dir, target_label_mapping,
                                       data_type="train", model_name="resnet18")
-    val_dataset = init_coco_dataset(val_meta_file, val_data_dir, target_label_mapping,
-                                    data_type="val", model_name="resnet18")
-
-    train_data_iter = initialize_dataloader(train_dataset, batch_size, shuffle=True, num_workers=num_workers)
-    val_data_iter = initialize_dataloader(val_dataset, batch_size, shuffle=True, num_workers=num_workers)
+    # test_dataset = init_coco_dataset(val_meta_file, val_data_dir, target_label_mapping,
+    #                                 data_type="val", model_name="resnet18")
+    train_len = int(0.7*len(train_dataset))
+    val_len = len(train_dataset) - train_len
+    train_set, val_set = random_split(train_dataset, [train_len, val_len])
+    train_data_iter = initialize_dataloader(train_set, batch_size, shuffle=True, num_workers=num_workers)
+    val_data_iter = initialize_dataloader(val_set, batch_size, shuffle=True, num_workers=num_workers)
 
     return train_data_iter, val_data_iter
+
+
+# def get_categorical_data(per_class_data=1):
+#     """ Fetches the one image for each category. """
+#     # Todo:
+#     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
+#     annFile = '{}/annotations/instances_{}.json'.format(data_dir, "val2017")
+#     coco = CocoCam(annFile)
+#     cat_mapping = coco.get_cat_labels(catIds=class_ids)
+#
+#     nn_target_labels = {target_label_mapping[key]: val for key, val in cat_mapping.items()}
+#     imgs_id = coco.get_imgs(catIds=class_ids, per_class_data=per_class_data)
+#     imgs_with_loc = coco.get_img_loc(imgIds=imgs_id)
+#     pass

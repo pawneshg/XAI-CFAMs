@@ -2,7 +2,6 @@ import json
 from collections import defaultdict
 from pycocotools.coco import COCO
 
-
 def create_dataset_metadata(class_ids, data_dir, out_file, data_type="val2017"):
     data = defaultdict()
     dataset_count = defaultdict(int)

@@ -31,7 +31,9 @@ def resnet18():
     model.to(device)
     train_data_iter, val_data_iter = get_coco_dataset_iter()
     loss = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-1, momentum=9e-1)
+    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-1, momentum=9e-1)
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-4, momentum=0.9, nesterov=True)
+    scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, factor=0.1, patience=5, verbose=True)
 
     if weights_load_path is not None:
         state_dict = torch.load(weights_load_path)
@@ -39,5 +41,5 @@ def resnet18():
     else:
         _ = train_network(network=model, loss=loss, optimizer=optimizer, train_iter=train_data_iter, val_iter=val_data_iter,
                           num_epochs=end_epoch, device=device, start_epoch=start_epoch, checkpoints=checkpoints,
-                          out_dir=save_weights_loc)
+                          out_dir=save_weights_loc, scheduler=scheduler)
     return model

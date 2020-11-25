@@ -94,7 +94,7 @@ def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, de
         # Track of Best epoch.
         # training_cycles['val_loss'].append(avg_loss / total)
         # training_cycles['val_acc'].append(correct / total)
-        if (mean_acc) > best_acc:
+        if mean_acc > best_acc:
             best_epoch = epoch_
             best_acc = mean_acc
 
