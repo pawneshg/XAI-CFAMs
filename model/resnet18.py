@@ -33,7 +33,7 @@ def resnet18():
     loss = torch.nn.CrossEntropyLoss().to(device)
     # optimizer = torch.optim.Adam(model.parameters(), lr=1e-1, momentum=9e-1)
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-4, momentum=0.9, nesterov=True)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.1)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
     if weights_load_path is not None:
         state_dict = torch.load(weights_load_path)

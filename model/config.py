@@ -21,10 +21,10 @@ num_workers = 4
 batch_size = 125
 
 # [model-training]
-pretrain = False
-finetune = False
+pretrain = True
+finetune = True
 start_epoch = 0
-end_epoch = 200
+end_epoch = 50
 checkpoints = True
 save_weights_loc = "/netscratch/kumar/cam/model/weights"
 weights_load_path = None
