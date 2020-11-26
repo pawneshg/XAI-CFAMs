@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from model.config import (class_ids, pretrain, finetune, start_epoch, end_epoch, checkpoints, save_weights_loc,
                           weights_load_path)
-from model.coco_dataset import get_coco_dataset_iter
+from model.coco_dataset import get_coco_dataset_iter, get_test_coco_dataset_iter
 from model.train import train_network
 
 
@@ -32,7 +32,6 @@ def resnet18():
     model.to(device)
     train_data_iter, val_data_iter = get_coco_dataset_iter()
     loss = torch.nn.CrossEntropyLoss().to(device)
-    # optimizer = torch.optim.Adam(model.parameters(), lr=1e-1, momentum=9e-1)
     optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-4, momentum=0.9, nesterov=True)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
@@ -44,3 +43,26 @@ def resnet18():
                           num_epochs=end_epoch, device=device, start_epoch=start_epoch, checkpoints=checkpoints,
                           out_dir=save_weights_loc, scheduler=scheduler)
     return model
+
+
+def test_resnet18(model=None):
+    """Test Accuracy on Test dataset(val2017 mscoco)"""
+    if model is None:
+        model = resnet18()
+    test_data_iter = get_test_coco_dataset_iter()
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+    loss = torch.nn.CrossEntropyLoss().to(device)
+    correct, total, avg_loss = 0, 0, 0
+
+    for batch_x, batch_y in test_data_iter:
+        batch_x = batch_x.to(device)
+        batch_y = batch_y.to(device)
+        result = model(batch_x)
+        l = loss(result, batch_y)
+        result = torch.argmax(result, dim=-1)
+        correct += torch.sum(result == batch_y).data.cpu().numpy()
+        total += batch_x.shape[0]
+        avg_loss += l.data.cpu().numpy() * batch_x.shape[0]
+    mean_loss = avg_loss / total
+    mean_acc = correct / total
+    return mean_loss, mean_acc
