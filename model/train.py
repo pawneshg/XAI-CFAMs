@@ -97,4 +97,5 @@ def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, de
             best_acc = mean_acc
 
     print("Best epoch %d , validation _accuracy %.2f" % (best_epoch + 1, best_acc * 100))
+    # Todo: Cleanup saved models. Only keep best epoch weights.
     # return training_cycles

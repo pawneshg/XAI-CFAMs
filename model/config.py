@@ -17,7 +17,7 @@ base_dir = "/netscratch/kumar/cam"
 data_dir = "/ds/images/MSCOCO2017/"
 train_data_dir = os.path.join(data_dir, "train2017")
 val_data_dir = os.path.join(data_dir, "val2017")
-num_workers = 4
+num_workers = 0
 batch_size = 125
 
 # [model-training]
