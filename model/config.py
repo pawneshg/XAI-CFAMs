@@ -17,7 +17,7 @@ base_dir = "/netscratch/kumar/cam"
 data_dir = "/ds/images/MSCOCO2017/"
 train_data_dir = os.path.join(data_dir, "train2017")
 val_data_dir = os.path.join(data_dir, "val2017")
-num_workers = 0
+num_workers = 4
 batch_size = 125
 
 # [model-training]
@@ -27,4 +27,4 @@ start_epoch = 0
 end_epoch = 20
 checkpoints = True
 save_weights_loc = "/netscratch/kumar/cam/model/weights"
-weights_load_path = None
+weights_load_path = "/netscratch/kumar/cam/model/weights/weight_stepLR_2.pth"
