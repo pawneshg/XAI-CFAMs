@@ -17,7 +17,7 @@ def initialize_nn_model(model_name, num_classes, pretrained=True, finetune=True)
         in_features = model.fc.in_features
         model.fc = torch.nn.Linear(in_features, out_features=num_classes)
         input_size = 224
-    return nn.DataParallel(model), input_size
+    return model, input_size
 
 
 def set_param_requires_grad(model, require_grad=True):
