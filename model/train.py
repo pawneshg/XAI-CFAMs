@@ -24,7 +24,7 @@ def model_train(model, optimizer, device, train_iter, loss, scheduler=None):
     mean_loss = avg_loss / total
     mean_acc = correct / total
     if scheduler is not None:
-        scheduler.step(mean_loss)
+        scheduler.step()
     return mean_loss, mean_acc
 
 
@@ -48,8 +48,6 @@ def model_eval(model, device, val_iter, loss):
             avg_loss += l.data.cpu().numpy() * batch_x.shape[0]
         mean_loss = avg_loss / total
         mean_acc = correct / total
-        print("Loss: ", mean_loss)
-        print("Acc:", mean_acc)
     return mean_loss, mean_acc
 
 
@@ -99,4 +97,5 @@ def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, de
             best_acc = mean_acc
 
     print("Best epoch %d , validation _accuracy %.2f" % (best_epoch + 1, best_acc * 100))
+    # Todo: Cleanup saved models. Only keep best epoch weights.
     # return training_cycles

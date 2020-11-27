@@ -4,8 +4,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from PIL import Image
-from model.config import (train_meta_file, val_meta_file, class_ids, train_data_dir, val_data_dir, num_workers,
-                          batch_size, data_dir)
+from sacred_config import ex
 # from data_handler.extract_coco_metainfo import CocoCam
 
 
@@ -72,15 +71,15 @@ def initialize_dataloader(dataset, batch_size, shuffle, num_workers):
     return data_loader
 
 
-def get_coco_dataset_iter():
-    """Train model with mscoco dataset."""
+@ex.capture
+def get_coco_dataset_iter(class_ids, train_meta_file, train_data_dir, num_workers, batch_size):
+    """Dataset Iterator for mscoco dataset."""
     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
     # target_labels = list(target_label_mapping.values())
 
     train_dataset = init_coco_dataset(train_meta_file, train_data_dir, target_label_mapping,
                                       data_type="train", model_name="resnet18")
-    # test_dataset = init_coco_dataset(val_meta_file, val_data_dir, target_label_mapping,
-    #                                 data_type="val", model_name="resnet18")
+
     train_len = int(0.7*len(train_dataset))
     val_len = len(train_dataset) - train_len
     train_set, val_set = random_split(train_dataset, [train_len, val_len])
@@ -88,6 +87,16 @@ def get_coco_dataset_iter():
     val_data_iter = initialize_dataloader(val_set, batch_size, shuffle=True, num_workers=num_workers)
 
     return train_data_iter, val_data_iter
+
+
+@ex.capture
+def get_test_coco_dataset_iter(class_ids, val_meta_file, val_data_dir, batch_size, num_workers):
+    """Test Dataset Iter for mscoco dataset"""
+    target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
+    test_dataset = init_coco_dataset(val_meta_file, val_data_dir, target_label_mapping,
+                                     data_type="val", model_name="resnet18")
+    test_data_iter = initialize_dataloader(test_dataset, batch_size, shuffle=True, num_workers=num_workers)
+    return test_data_iter
 
 
 # def get_categorical_data(per_class_data=1):

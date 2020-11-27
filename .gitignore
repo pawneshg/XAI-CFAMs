@@ -4,3 +4,6 @@ output.txt
 nohup.out
 */__pycache__/*
 model/weights/weight_snap_*.pth
+.ipynb_checkpoints/*
+__pycache__/*
+
