@@ -1,7 +1,5 @@
 import torch
-import torch.nn as nn
-from model.config import (class_ids, pretrain, finetune, start_epoch, end_epoch, checkpoints, save_weights_loc,
-                          weights_load_path)
+from sacred_config import ex
 from model.coco_dataset import get_coco_dataset_iter, get_test_coco_dataset_iter
 from model.train import train_network
 
@@ -25,20 +23,22 @@ def set_param_requires_grad(model, require_grad=True):
         param.requires_grad = require_grad
 
 
-def resnet18():
+@ex.capture
+def resnet18(pretrain, class_ids, finetune, weights_load_path, end_epoch, start_epoch, checkpoints, save_weights_loc):
     model, input_size = initialize_nn_model(model_name="resnet18", num_classes=len(class_ids),
                                             pretrained=pretrain, finetune=finetune)
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model.to(device)
-    train_data_iter, val_data_iter = get_coco_dataset_iter()
-    loss = torch.nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-4, momentum=0.9, nesterov=True)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
 
     if weights_load_path is not None:
-        state_dict = torch.load(weights_load_path)
+        state_dict = torch.load(weights_load_path) if torch.cuda.is_available() else torch.load(weights_load_path,
+                                                                                                map_location=device)
         model.load_state_dict(state_dict)
     else:
+        loss = torch.nn.CrossEntropyLoss().to(device)
+        optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-4, momentum=0.9, nesterov=True)
+        scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
+        train_data_iter, val_data_iter = get_coco_dataset_iter()
         _ = train_network(network=model, loss=loss, optimizer=optimizer, train_iter=train_data_iter, val_iter=val_data_iter,
                           num_epochs=end_epoch, device=device, start_epoch=start_epoch, checkpoints=checkpoints,
                           out_dir=save_weights_loc, scheduler=scheduler)

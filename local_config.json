@@ -1,0 +1,25 @@
+{
+  "base_dir": ".",
+  "train_meta_file": "./coco_train2017_dataset_metadata.txt",
+  "val_meta_file" : "./coco_val2017_dataset_metadata.txt",
+  "class_ids" : [4, 5, 6, 7, 9, 15, 16, 17, 19, 21, 22, 24, 25, 28, 52, 54, 56, 59, 61, 65, 70, 79, 86, 88],
+  "number_of_classes": 24,
+
+  "data_dir": "../../datasets/coco",
+  "train_data_dir": "../../datasets/coco/train2017",
+  "val_data_dir": "../../datasets/coco/val2017",
+  "num_workers": 4,
+  "batch_size": 125,
+
+  "pretrain": true,
+  "finetune": true,
+  "start_epoch": 0,
+  "end_epoch": 20,
+  "checkpoints": true,
+  "save_weights_loc": "./model/weights",
+  "weights_load_path": "./model/weights/weight_stepLR_2.pth",
+
+  "activation_base_dir": ".",
+  "activation_save_path": "./results"
+
+}
