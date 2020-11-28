@@ -6,6 +6,7 @@
   "number_of_classes": 24,
 
   "data_dir": "/ds/images/MSCOCO2017/",
+  "val_ann_file": "/ds/images/MSCOCO2017/annotations/instances_val2017.json",
   "train_data_dir": "/ds/images/MSCOCO2017/train2017",
   "val_data_dir": "/ds/images/MSCOCO2017/val2017",
   "num_workers": 4,
@@ -20,6 +21,7 @@
   "weights_load_path": "/netscratch/kumar/cam/model/weights/weight_stepLR_2.pth",
 
   "activation_base_dir": "/netscratch/kumar/cam",
-  "activation_save_path": "/netscratch/kumar/cam/results"
+  "activation_save_path": "/netscratch/kumar/cam/results",
+  "num_of_cams": 2
 
 }
