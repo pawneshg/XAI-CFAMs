@@ -5,6 +5,7 @@ import numpy as np
 from model.coco_dataset import get_test_coco_dataset_iter
 from sacred_config import ex
 from data_handler.coco_api import CocoCam
+from collections import defaultdict
 
 
 @ex.capture
@@ -25,7 +26,7 @@ def extract_features_and_pred_label_from_nn(model, data):
 
 
 @ex.capture
-def extract_activation_maps(model, features, pred_label, num_of_cams):
+def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
     """ class activation map."""
     last_layer_weights = list(model.parameters())[-2]
     avg_pool_weights = list(model.parameters())[-3]
@@ -38,6 +39,8 @@ def extract_activation_maps(model, features, pred_label, num_of_cams):
         each_img_cams = list()
         for each_map_id in top_activation_map_ids:
             cam = features[0][each_sample_class_idx][each_map_id]
+            _log.debug("cam min value:", np.min(cam))
+            _log.debug("cam max value:", np.max(cam))
             cam -= np.min(cam)
             cam /= np.max(cam)
             cam_img = np.uint8(255 * cam)
@@ -48,26 +51,31 @@ def extract_activation_maps(model, features, pred_label, num_of_cams):
 
 
 @ex.capture
-def get_coco_samples_per_class(_log, number_of_classes, samples_per_class=1):
-    """ Fetch samples for each class .
-    # Todo: Extend the functionality to support param: samples_per_class.
+def get_coco_samples_per_class(_log, number_of_classes, num_of_sample_per_class):
+    """ Fetch samples for each class and arrange images in an order with the class_id
     """
-    images = []
-    labels = []
+    images = defaultdict(list)
+    labels = defaultdict(list)
     _log.info("Getting Test coco dataset.")
     test_data_iter = get_test_coco_dataset_iter()
-    visited_classes = []
+    visited_classes = defaultdict(int)
     _log.info("Extracting one data per class.")
     for data_batch, label_batch in test_data_iter:
         for data, label in zip(data_batch, label_batch):
             label = label.numpy().item()
-            if label not in visited_classes:
-                images.append(data)
-                visited_classes.append(label)
-                labels.append(label)
-            if len(visited_classes) == number_of_classes:
+            if visited_classes[label] < num_of_sample_per_class:
+                images[label].append(data)
+                visited_classes[label] += 1
+                labels[label].append(label)
+            if (len(visited_classes) == number_of_classes) and (len(set(visited_classes.values())) == 1):
                 break
-    return torch.stack(images), torch.Tensor(labels)
+    # combine all class images
+    imgs, labels_ = [], []
+    for key in labels.keys():
+        imgs.extend(images[key])
+        labels_.extend(labels[key])
+    _log.debug("visited_classes Map:", visited_classes)
+    return torch.stack(imgs), torch.Tensor(labels_)
 
 
 @ex.capture
