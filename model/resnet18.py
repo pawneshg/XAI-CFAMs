@@ -33,7 +33,7 @@ def resnet18(pretrain, class_ids, finetune, weights_load_path, end_epoch, start_
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model.to(device)
 
-    if weights_load_path is not None:
+    if (weights_load_path is not None) or (weights_load_path == ""):
         state_dict = torch.load(weights_load_path) if torch.cuda.is_available() else torch.load(weights_load_path,
                                                                                                 map_location=device)
         model.load_state_dict(state_dict)
