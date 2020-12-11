@@ -12,13 +12,15 @@ from collections import defaultdict
 def extract_features_and_pred_label_from_nn(model, data):
     """predict the label for an image."""
     last_conv_layer = "layer4"
+    avg_layer = "avgpool"
     model.eval()
     features_blobs = []
 
-    def last_conv_layer_hook(module, grad_input, grad_output):
+    def conv_layer_hook(module, grad_input, grad_output):
         features_blobs.append(grad_output.data.cpu().numpy())
 
-    model._modules.get(last_conv_layer).register_forward_hook(last_conv_layer_hook)
+    model._modules.get(last_conv_layer).register_forward_hook(conv_layer_hook)
+    model._modules.get(avg_layer).register_forward_hook(conv_layer_hook)
     result = model(data)
     result = functional.softmax(result, dim=1).data.squeeze()
     result = torch.topk(result, k=1, dim=1)
@@ -29,12 +31,11 @@ def extract_features_and_pred_label_from_nn(model, data):
 def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
     """ class activation map."""
     last_layer_weights = list(model.parameters())[-2]
-    avg_pool_weights = list(model.parameters())[-3]
     size_upsample = (224, 224) # verify input img size
     # todo: Remove for loops.
     cams = []
     for each_sample_class_idx in np.squeeze(pred_label):
-        top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * avg_pool_weights,
+        top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * features[1][each_sample_class_idx],
                                             k=num_of_cams).indices.numpy()
         each_img_cams = list()
         for each_map_id in top_activation_map_ids:
