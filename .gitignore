@@ -3,7 +3,7 @@ run.sh
 output.txt
 nohup.out
 */__pycache__/*
-model/weights/weight_snap_*.pth
+model/weights/*.pth
 .ipynb_checkpoints/*
 __pycache__/*
-
+*.pth
