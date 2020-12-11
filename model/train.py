@@ -74,14 +74,14 @@ def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, de
         print("Epoch %d " % (epoch_ + 1))
 
         # Training
-        print(" Training ")
+        print(" Training: Epoch %d" % (epoch_ + 1))
         mean_loss, mean_acc = model_train(network, optimizer, device, train_iter, loss, scheduler)
         print("Loss: ", mean_loss)
         print("Acc:", mean_acc)
 
 
         # Validation
-        print("Validation ")
+        print("Validation: Epoch %d" % (epoch_ + 1))
         mean_loss, mean_acc = model_eval(network, device, val_iter, loss)
         print("Loss: ", mean_loss)
         print("Acc:", mean_acc)
