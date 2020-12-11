@@ -22,12 +22,12 @@ class CocoDataset(Dataset):
     def __getitem__(self, index):
         img_path = self.data[index]["file_name"]
         img = Image.open(os.path.join(self.img_folder_loc, img_path))
-        img = img.convert("RGBA")
+        img = img.convert("RGB")
         cat = self.target_label_mapping[self.data[index]["category_id"]]
         if self.mode == "train":
             return self.transform(img), cat
         else:
-            return self.transform(img), cat
+            return self.transform(img), cat, self.data[index]["file_name"]
 
     def __len__(self):
         return len(self.data)

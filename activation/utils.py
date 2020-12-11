@@ -1,11 +1,14 @@
 import torch
 import cv2
+import os
+from PIL import Image, ImageDraw
 from torch.nn import functional
 import numpy as np
 from model.coco_dataset import get_test_coco_dataset_iter
 from sacred_config import ex
 from data_handler.coco_api import CocoCam
 from collections import defaultdict
+from model.coco_dataset import load_mscoco_metadata, coco_data_transform
 
 
 @ex.capture
@@ -61,26 +64,29 @@ def get_coco_samples_per_class(_log, number_of_classes, num_of_sample_per_class)
     """
     images = defaultdict(list)
     labels = defaultdict(list)
+    img_id = defaultdict(list)
     _log.info("Getting Test coco dataset.")
     test_data_iter = get_test_coco_dataset_iter()
     visited_classes = defaultdict(int)
     _log.info("Extracting one data per class.")
-    for data_batch, label_batch in test_data_iter:
-        for data, label in zip(data_batch, label_batch):
+    for data_batch, label_batch, data_id in test_data_iter:
+        for data, label, id in zip(data_batch, label_batch, data_id):
             label = label.numpy().item()
             if visited_classes[label] < num_of_sample_per_class:
                 images[label].append(data)
                 visited_classes[label] += 1
                 labels[label].append(label)
+                img_id[label].append(id)
             if (len(visited_classes) == number_of_classes) and (len(set(visited_classes.values())) == 1):
                 break
     # combine all class images
-    imgs, labels_ = [], []
+    imgs, labels_, img_names = [], [], []
     for key in labels.keys():
         imgs.extend(images[key])
         labels_.extend(labels[key])
+        img_names.extend(img_id[key])
     _log.debug("visited_classes Map:", visited_classes)
-    return torch.stack(imgs), torch.Tensor(labels_)
+    return torch.stack(imgs), torch.Tensor(labels_), img_names
 
 
 @ex.capture
@@ -89,7 +95,7 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
     data_to_visualize = []
     labels_for_vis_data = []
     _log.info("Fetching visualization data.")
-    t_images, t_labels = data_to_visualize_func()
+    t_images, t_labels, img_names = data_to_visualize_func()
     _log.info("Extracting model features and labels.")
     t_topk, features = extract_features_and_pred_label_from_nn(model, t_images)
     probs, pred_label = t_topk
@@ -98,13 +104,15 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
     cams = extract_activation_maps(model, features, pred_label, num_of_cams)
     _log.info("Fetching class names.")
     nn_labels = extract_class_names(class_ids)
+    data_ob = load_mscoco_metadata(data_type="val")
 
-    for each_img, each_label, img_cams, each_pred_label in \
-            zip(t_images.numpy(), t_labels.numpy(), cams, pred_label):
+    for each_img, each_label, img_name, img_cams, each_pred_label in \
+            zip(t_images.numpy(), t_labels.numpy(), img_names, cams, pred_label):
         # input image
-        each_img = each_img.transpose((1, 2, 0))
-        each_img = normalize_image(each_img)
 
+        each_img = draw_object_polygon(each_img, img_name, data_ob)
+        each_img = each_img.transpose((1, 2, 0))
+        each_img = normalize_image(each_img)   # remove
         data_to_visualize.append(each_img)
         labels_for_vis_data.append(nn_labels[each_label])
         for each_cam in img_cams:
@@ -133,6 +141,23 @@ def activation_map_over_img(image, cam, alpha=0.7):
     image = np.round(image*255.0).astype(int)
     cam_over_img = (heatmap*alpha) + image*(1-alpha)
     return cam_over_img.astype(int)
+
+
+@ex.capture
+def draw_object_polygon(img, img_name, data_ob, val_data_dir):
+
+    alpha = 0.6
+    img = Image.open(os.path.join(val_data_dir, img_name)).convert('RGBA')
+    img2 = img.copy()
+    draw = ImageDraw.Draw(img2)
+    segmentation = [each_data["segmentation"] for each_data in data_ob if each_data["file_name"] == img_name]
+
+    for each_poly in range(len(segmentation[0])):
+        draw.polygon(segmentation[0][each_poly], fill='green', outline='red')
+    img3 = Image.blend(img, img2, alpha)
+    transform = coco_data_transform(input_size=224, data_type="val")
+    return transform(img3.convert('RGB')).cpu().numpy()
+
 
 
 @ex.capture
