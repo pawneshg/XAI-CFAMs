@@ -5,30 +5,32 @@ from torch.utils.data.dataset import Dataset
 from torchvision import transforms
 from PIL import Image
 from sacred_config import ex
-# from data_handler.extract_coco_metainfo import CocoCam
+from data_handler.coco_dataset import CocoLoadDataset
 
+# from data_handler.extract_coco_metainfo import CocoCam
 
 
 class CocoDataset(Dataset):
 
-    def __init__(self, data, transform, img_folder_loc, target_label_mapping):
-        # Todo: Fetch the data from coco api,
+    def __init__(self, mode, data, transform, img_folder_loc, target_label_mapping):
         self.data = data
         self.transform = transform
-        self.ids = list(self.data.keys())
         self.img_folder_loc = img_folder_loc
         self.target_label_mapping = target_label_mapping
+        self.mode = mode
 
     def __getitem__(self, index):
-        img_id = self.ids[index]
-        img_path = self.data[img_id]["file_name"]
+        img_path = self.data[index]["file_name"]
         img = Image.open(os.path.join(self.img_folder_loc, img_path))
         img = img.convert("RGB")
-        cat = self.target_label_mapping[self.data[img_id]["category_id"]]
-        return self.transform(img), cat
+        cat = self.target_label_mapping[self.data[index]["category_id"]]
+        if self.mode == "train":
+            return self.transform(img), cat
+        else:
+            return self.transform(img), cat, self.data[index]
 
     def __len__(self):
-        return len(self.ids)
+        return len(self.data)
 
 
 def coco_data_transform(input_size, data_type):
@@ -50,19 +52,19 @@ def coco_data_transform(input_size, data_type):
     return train_transform if data_type == "train" else val_transform
 
 
-def load_mscoco_metadata(meta_data_file):
+def load_mscoco_metadata(data_type):
     """load mscoco dataset metadata """
-    with open(meta_data_file) as json_file:
-        data = json.load(json_file)
-    return data
+    coco_dataset = CocoLoadDataset(data_type=data_type)
+    t_data = coco_dataset.load_dataset(samples_per_class=650)
+    return t_data
 
 
 def init_coco_dataset(meta_file, img_folder_loc, target_label_mapping, data_type="val", model_name="resnet18"):
     """ preprocess the coco dataset """
     if model_name == "resnet18":
-        data = load_mscoco_metadata(meta_file)
+        data = load_mscoco_metadata(data_type)
         transform = coco_data_transform(input_size=224, data_type=data_type)
-        dataset = CocoDataset(data, transform, img_folder_loc=img_folder_loc, target_label_mapping=target_label_mapping)
+        dataset = CocoDataset(data_type, data, transform, img_folder_loc=img_folder_loc, target_label_mapping=target_label_mapping)
         return dataset
 
 
@@ -71,15 +73,14 @@ def initialize_dataloader(dataset, batch_size, shuffle, num_workers):
     return data_loader
 
 
+
 @ex.capture
-def get_coco_dataset_iter(class_ids, train_meta_file, train_data_dir, num_workers, batch_size):
+def get_coco_train_test_iter(class_ids, train_meta_file, train_data_dir, num_workers, batch_size):
     """Dataset Iterator for mscoco dataset."""
     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
-    # target_labels = list(target_label_mapping.values())
 
     train_dataset = init_coco_dataset(train_meta_file, train_data_dir, target_label_mapping,
                                       data_type="train", model_name="resnet18")
-
     train_len = int(0.7*len(train_dataset))
     val_len = len(train_dataset) - train_len
     train_set, val_set = random_split(train_dataset, [train_len, val_len])
@@ -87,7 +88,19 @@ def get_coco_dataset_iter(class_ids, train_meta_file, train_data_dir, num_worker
     val_data_iter = initialize_dataloader(val_set, batch_size, shuffle=True, num_workers=num_workers)
 
     return train_data_iter, val_data_iter
-
+#
+#
+# @ex.capture
+# def get_coco_train_iter(class_ids, train_meta_file, train_data_dir, num_workers, batch_size):
+#     """Dataset Iterator for mscoco dataset."""
+#     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
+#
+#     train_dataset = init_coco_dataset(train_meta_file, train_data_dir, target_label_mapping,
+#                                       data_type="train", model_name="resnet18")
+#
+#     train_data_iter = initialize_dataloader(train_dataset, batch_size, shuffle=True, num_workers=num_workers)
+#
+#     return train_data_iter
 
 @ex.capture
 def get_test_coco_dataset_iter(class_ids, val_meta_file, val_data_dir, batch_size, num_workers, _log):
@@ -101,16 +114,3 @@ def get_test_coco_dataset_iter(class_ids, val_meta_file, val_data_dir, batch_siz
     _log.info("ended: get_test_coco_dataset_iter")
     return test_data_iter
 
-
-# def get_categorical_data(per_class_data=1):
-#     """ Fetches the one image for each category. """
-#     # Todo:
-#     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
-#     annFile = '{}/annotations/instances_{}.json'.format(data_dir, "val2017")
-#     coco = CocoCam(annFile)
-#     cat_mapping = coco.get_cat_labels(catIds=class_ids)
-#
-#     nn_target_labels = {target_label_mapping[key]: val for key, val in cat_mapping.items()}
-#     imgs_id = coco.get_imgs(catIds=class_ids, per_class_data=per_class_data)
-#     imgs_with_loc = coco.get_img_loc(imgIds=imgs_id)
-#     pass
