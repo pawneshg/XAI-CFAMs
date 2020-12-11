@@ -79,8 +79,6 @@ def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, de
         print("Loss: ", mean_loss)
         print("Acc:", mean_acc)
 
-        # training_cycles['loss'].append(mean_loss)
-        # training_cycles['acc'].append(mean_acc)
 
         # Validation
         print("Validation ")
@@ -89,13 +87,30 @@ def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, de
         print("Acc:", mean_acc)
         # saving the model
         model_save(network, checkpoints, out_dir, epoch_)
-        # Track of Best epoch.
-        # training_cycles['val_loss'].append(avg_loss / total)
-        # training_cycles['val_acc'].append(correct / total)
+
         if mean_acc > best_acc:
             best_epoch = epoch_
             best_acc = mean_acc
 
     print("Best epoch %d , validation _accuracy %.2f" % (best_epoch + 1, best_acc * 100))
-    # Todo: Cleanup saved models. Only keep best epoch weights.
-    # return training_cycles
+    # Cleanup saved models. Only keep best epoch weights.
+    files_to_be_deleted = [os.path.join(out_dir, 'weight_snap_%03d.pth' % (ep + 1)) for ep in
+                           range(start_epoch, start_epoch + num_epochs) if ep != best_epoch]
+
+    for file in files_to_be_deleted:
+        os.remove(file)
+
+    # Iterating over all training dataset for best_epoch model.
+    print("Best Model Iteration on all training dataset.")
+    best_epoch_model = os.path.join(out_dir, 'weight_snap_%03d.pth' % (best_epoch + 1))
+    state_dict = torch.load(best_epoch_model) if torch.cuda.is_available() else torch.load(best_epoch_model,
+                                                                                            map_location=device)
+    network.load_state_dict(state_dict)
+    mean_loss, mean_acc = model_train(network, optimizer, device, train_iter, loss, scheduler)
+    print("Loss: ", mean_loss)
+    print("Acc:", mean_acc)
+    mean_loss, mean_acc = model_train(network, optimizer, device, val_iter, loss, scheduler)
+    print("Loss: ", mean_loss)
+    print("Acc:", mean_acc)
+    model_save(network, checkpoints, out_dir, best_epoch)
+
