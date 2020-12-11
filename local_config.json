@@ -14,14 +14,15 @@
   "pretrain": true,
   "finetune": true,
   "start_epoch": 0,
-  "end_epoch": 20,
+  "end_epoch": 2,
   "checkpoints": true,
   "save_weights_loc": "./model/weights",
-  "weights_load_path": "",
+  "weights_load_path": "./model/weights/resnet_weight_11dec.pth",
 
   "activation_base_dir": ".",
   "activation_save_path": "./results",
   "num_of_cams": 2,
-  "num_of_sample_per_class": 4
+  "num_of_sample_per_class": 4,
+  "threshold_cam": 0.70
 
 }

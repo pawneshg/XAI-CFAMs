@@ -28,24 +28,28 @@ def extract_features_and_pred_label_from_nn(model, data):
 
 
 @ex.capture
-def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
+def extract_activation_maps(model, features, pred_label, num_of_cams, threshold_cam, _log):
     """ class activation map."""
     last_layer_weights = list(model.parameters())[-2]
     size_upsample = (224, 224) # verify input img size
+    avg_pool_features = features[1]
     # todo: Remove for loops.
     cams = []
     for each_sample_class_idx in np.squeeze(pred_label):
-        top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * features[1][each_sample_class_idx],
+        top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * torch.Tensor(np.squeeze(avg_pool_features[each_sample_class_idx])),
                                             k=num_of_cams).indices.numpy()
         each_img_cams = list()
         for each_map_id in top_activation_map_ids:
             cam = features[0][each_sample_class_idx][each_map_id]
             _log.debug("cam min value:", np.min(cam))
             _log.debug("cam max value:", np.max(cam))
+            cam = np.maximum(cam, 0)
             cam -= np.min(cam)
             cam /= np.max(cam)
             cam_img = np.uint8(255 * cam)
-            each_img_cams.append(cv2.resize(cam_img, size_upsample))
+            cam_img = cv2.resize(cam_img, size_upsample)
+            cam = np.where(cam_img < np.max(cam_img)*threshold_cam, 0, cam_img)
+            each_img_cams.append(cam)
 
         cams.append(each_img_cams)
     return cams
@@ -94,6 +98,7 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
     cams = extract_activation_maps(model, features, pred_label, num_of_cams)
     _log.info("Fetching class names.")
     nn_labels = extract_class_names(class_ids)
+
     for each_img, each_label, img_cams, each_pred_label in \
             zip(t_images.numpy(), t_labels.numpy(), cams, pred_label):
         # input image
@@ -121,9 +126,10 @@ def normalize_image(image):
     return image
 
 
-def activation_map_over_img(image, cam, alpha=0.3):
+def activation_map_over_img(image, cam, alpha=0.7):
     """Overlay activation map on image"""
     heatmap = cv2.applyColorMap(cam, cv2.COLORMAP_JET)
+    heatmap = cv2.cvtColor(heatmap, cv2.COLOR_BGR2RGB)
     image = np.round(image*255.0).astype(int)
     cam_over_img = (heatmap*alpha) + image*(1-alpha)
     return cam_over_img.astype(int)
