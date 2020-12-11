@@ -22,7 +22,7 @@ class CocoDataset(Dataset):
     def __getitem__(self, index):
         img_path = self.data[index]["file_name"]
         img = Image.open(os.path.join(self.img_folder_loc, img_path))
-        img = img.convert("RGB")
+        img = img.convert("RGBA")
         cat = self.target_label_mapping[self.data[index]["category_id"]]
         if self.mode == "train":
             return self.transform(img), cat
