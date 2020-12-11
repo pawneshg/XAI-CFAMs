@@ -75,7 +75,7 @@ def initialize_dataloader(dataset, batch_size, shuffle, num_workers):
 
 
 @ex.capture
-def get_coco_train_test_iter(class_ids, train_meta_file, train_data_dir, num_workers, batch_size):
+def get_coco_train_test_iter(class_ids, train_data_dir, num_workers, batch_size):
     """Dataset Iterator for mscoco dataset."""
     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
 
@@ -103,7 +103,7 @@ def get_coco_train_test_iter(class_ids, train_meta_file, train_data_dir, num_wor
 #     return train_data_iter
 
 @ex.capture
-def get_test_coco_dataset_iter(class_ids, val_meta_file, val_data_dir, batch_size, num_workers, _log):
+def get_test_coco_dataset_iter(class_ids, val_data_dir, batch_size, num_workers, _log):
     """Test Dataset Iter for mscoco dataset"""
     _log.info("started: get_test_coco_dataset_iter")
     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}

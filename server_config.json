@@ -4,6 +4,7 @@
   "number_of_classes": 24,
 
   "data_dir": "/ds/images/MSCOCO2017/",
+  "train_ann_file": "../../datasets/coco/annotations/instances_train2017.json",
   "val_ann_file": "/ds/images/MSCOCO2017/annotations/instances_val2017.json",
   "train_data_dir": "/ds/images/MSCOCO2017/train2017",
   "val_data_dir": "/ds/images/MSCOCO2017/val2017",
