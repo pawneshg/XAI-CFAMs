@@ -57,7 +57,7 @@ def test_resnet18(model=None):
     loss = torch.nn.CrossEntropyLoss().to(device)
     correct, total, avg_loss = 0, 0, 0
 
-    for batch_x, batch_y, _ in test_data_iter:
+    for batch_x, batch_y in test_data_iter:
         batch_x = batch_x.to(device)
         batch_y = batch_y.to(device)
         result = model(batch_x)

@@ -27,7 +27,7 @@ class CocoDataset(Dataset):
         if self.mode == "train":
             return self.transform(img), cat
         else:
-            return self.transform(img), cat, self.data[index]
+            return self.transform(img), cat
 
     def __len__(self):
         return len(self.data)
