@@ -59,7 +59,7 @@ def load_mscoco_metadata(data_type):
     return t_data
 
 
-def init_coco_dataset(meta_file, img_folder_loc, target_label_mapping, data_type="val", model_name="resnet18"):
+def init_coco_dataset(img_folder_loc, target_label_mapping, data_type="val", model_name="resnet18"):
     """ preprocess the coco dataset """
     if model_name == "resnet18":
         data = load_mscoco_metadata(data_type)
@@ -79,7 +79,7 @@ def get_coco_train_test_iter(class_ids, train_meta_file, train_data_dir, num_wor
     """Dataset Iterator for mscoco dataset."""
     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
 
-    train_dataset = init_coco_dataset(train_meta_file, train_data_dir, target_label_mapping,
+    train_dataset = init_coco_dataset(train_data_dir, target_label_mapping,
                                       data_type="train", model_name="resnet18")
     train_len = int(0.7*len(train_dataset))
     val_len = len(train_dataset) - train_len
@@ -107,7 +107,7 @@ def get_test_coco_dataset_iter(class_ids, val_meta_file, val_data_dir, batch_siz
     """Test Dataset Iter for mscoco dataset"""
     _log.info("started: get_test_coco_dataset_iter")
     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
-    test_dataset = init_coco_dataset(val_meta_file, val_data_dir, target_label_mapping,
+    test_dataset = init_coco_dataset(val_data_dir, target_label_mapping,
                                      data_type="val", model_name="resnet18")
     _log.info("Test dataset: Intializing Dataloader.")
     test_data_iter = initialize_dataloader(test_dataset, batch_size, shuffle=True, num_workers=num_workers)

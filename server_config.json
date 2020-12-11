@@ -1,7 +1,5 @@
 {
   "base_dir": "/netscratch/kumar/cam",
-  "train_meta_file": "/netscratch/kumar/cam/coco_train2017_dataset_metadata.txt",
-  "val_meta_file" : "/netscratch/kumar/cam/coco_val2017_dataset_metadata.txt",
   "class_ids" : [4, 5, 6, 7, 9, 15, 16, 17, 19, 21, 22, 24, 25, 28, 52, 54, 56, 59, 61, 65, 70, 79, 86, 88],
   "number_of_classes": 24,
 
@@ -15,10 +13,10 @@
   "pretrain": true,
   "finetune": true,
   "start_epoch": 0,
-  "end_epoch": 20,
+  "end_epoch": 5,
   "checkpoints": true,
   "save_weights_loc": "/netscratch/kumar/cam/model/weights",
-  "weights_load_path": "/netscratch/kumar/cam/model/weights/weight_stepLR_2.pth",
+  "weights_load_path": "",
 
   "activation_base_dir": "/netscratch/kumar/cam",
   "activation_save_path": "/netscratch/kumar/cam/results",
