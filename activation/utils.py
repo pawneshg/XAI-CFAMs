@@ -119,7 +119,10 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
             # activation map
             cam_with_img = activation_map_over_img(each_img, each_cam, alpha=0.5)
 
-            data_to_visualize.append(cam_with_img)
+            # polygon of activation map
+            cam_with_polygon = draw_heatmap_polygon(cam_with_img, each_cam)
+
+            data_to_visualize.append(cam_with_polygon.astype(int))
             labels_for_vis_data.append(nn_labels[each_pred_label])
 
     return data_to_visualize, labels_for_vis_data
@@ -158,6 +161,14 @@ def draw_object_polygon(img, img_name, data_ob, val_data_dir):
     transform = coco_data_transform(input_size=224, data_type="val")
     return transform(img3.convert('RGB')).cpu().numpy()
 
+
+def draw_heatmap_polygon(image, cam):
+    image = cv2.cvtColor(np.float32(image), cv2.COLOR_RGB2BGR)
+    edged = cv2.Canny(cam, 30, 200)
+    contours, hierarchy = cv2.findContours(edged,
+                                           cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    _ = cv2.drawContours(image, contours, -1, (0, 255, 0), 1)
+    return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
 
 @ex.capture
