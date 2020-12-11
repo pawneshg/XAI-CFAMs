@@ -9,8 +9,8 @@ def run():
     model = resnet18()
     print("Test Accuracy:")
     loss, acc = test_resnet18(model)
-    # print("Model Test Acc", acc)
-    # print("Model Test Loss", loss)
+    print("Model Test Acc", acc)
+    print("Model Test Loss", loss)
     # print("Visualalizing .. ")
     # is_success = coco_activation_map_visualization(model=model)
     # if is_success:
