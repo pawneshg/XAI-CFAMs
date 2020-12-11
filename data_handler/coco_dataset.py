@@ -36,7 +36,8 @@ class CocoLoadDataset():
                     print("....Completed.")
                     break
             except:
-                print("\n No ann for img ", i_img)
+                pass
+                # print("\n No ann for img ", i_img)
 
         _log.info("Training Samples Balance ratio: %s", limit_ctrl)
         return dataset
