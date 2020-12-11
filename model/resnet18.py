@@ -1,6 +1,6 @@
 import torch
 from sacred_config import ex
-from model.coco_dataset import get_coco_dataset_iter, get_test_coco_dataset_iter
+from model.coco_dataset import get_coco_train_test_iter, get_test_coco_dataset_iter
 from model.train import train_network
 
 
@@ -19,8 +19,11 @@ def initialize_nn_model(model_name, num_classes, pretrained=True, finetune=True)
 
 
 def set_param_requires_grad(model, require_grad=True):
-    for param in model.parameters():
-        param.requires_grad = require_grad
+    for name, param in model.named_parameters():
+        if not 'fc' in name:
+            param.requires_grad = False
+        else:
+            param.requires_grad = True
 
 
 @ex.capture
@@ -38,7 +41,7 @@ def resnet18(pretrain, class_ids, finetune, weights_load_path, end_epoch, start_
         loss = torch.nn.CrossEntropyLoss().to(device)
         optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-4, momentum=0.9, nesterov=True)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.1)
-        train_data_iter, val_data_iter = get_coco_dataset_iter()
+        train_data_iter, val_data_iter = get_coco_train_test_iter()
         _ = train_network(network=model, loss=loss, optimizer=optimizer, train_iter=train_data_iter, val_iter=val_data_iter,
                           num_epochs=end_epoch, device=device, start_epoch=start_epoch, checkpoints=checkpoints,
                           out_dir=save_weights_loc, scheduler=scheduler)
