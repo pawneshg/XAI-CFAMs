@@ -30,12 +30,14 @@ class CocoLoadDataset():
                     dataset_struct['file_name'] = i_img_meta['file_name']
                     dataset_struct['segmentation'] = anns[max_area_covered_index]['segmentation']
                     dataset_struct['ann_id'] = annsIds[max_area_covered_index]
+                    dataset_struct['area'] = anns[max_area_covered_index]['area']
                     limit_ctrl[cat] += 1
                     dataset.append(dict(dataset_struct))
                 if (set(class_ids) == set(limit_ctrl.keys())) and (len(set(limit_ctrl.values())) == 1):
                     print("....Completed.")
                     break
             except:
+                # todo: specify exception
                 pass
                 # print("\n No ann for img ", i_img)
 
