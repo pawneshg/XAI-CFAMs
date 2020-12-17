@@ -52,8 +52,6 @@ def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
             cam = np.maximum(cam, 0)
             cam -= np.min(cam)
             cam /= np.max(cam)
-            cam_img = np.uint8(255 * cam)
-
             each_img_cams.append(cam)
 
         cams.append(each_img_cams)
