@@ -7,10 +7,10 @@ import numpy as np
 from model.coco_dataset import get_test_coco_dataset_iter
 from sacred_config import ex
 from data_handler.coco_api import CocoCam
+from pycocotools import mask
 from collections import defaultdict
 from model.coco_dataset import load_mscoco_metadata, coco_data_transform
 from sympy import Polygon
-from itertools import product
 import pyclipper
 
 
@@ -53,7 +53,6 @@ def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
             cam -= np.min(cam)
             cam /= np.max(cam)
             each_img_cams.append(cam)
-
         cams.append(each_img_cams)
     return cams
 
@@ -118,6 +117,7 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
             if each_data["file_name"] == img_name:
                 segmentation = each_data["segmentation"]
                 img_area = each_data["area"]
+                img_binary_mask = mask.decode(each_data["mask"])
 
         each_img = each_img.transpose((1, 2, 0))
         each_img = Image.open(os.path.join(val_data_dir, img_name))
@@ -135,6 +135,7 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
             # activation map
             q_measure = 0
             each_cam = apply_mask_threshold(each_img, each_cam)
+            q_measure_bin = compute_intersection_area_using_binary_mask(each_cam, img_binary_mask)
             cam_with_img = activation_map_over_img(each_img, each_cam, alpha=0.5)
 
             # polygon of activation map
@@ -144,17 +145,29 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
             # _log.info("Heatmap polygon Dimensions %s", heatmap_polygons)
 
             # intersection polygon
-            poly, q_measure = quantify_polygon_intersection(object_polygons, heatmap_polygons, img_area)
-
-            if poly:
-              cam_with_polygon, _ = draw_object_polygon(cam_with_polygon, poly, color="yellow")
-              cam_with_polygon = cam_with_polygon/255
+            # poly, q_measure = quantify_polygon_intersection(object_polygons, heatmap_polygons, img_area)
+            #
+            # if poly:
+            #   cam_with_polygon, _ = draw_object_polygon(cam_with_polygon, poly, color="yellow")
+            #   cam_with_polygon = cam_with_polygon/255
+            # todo: draw common area.
 
             data_to_visualize.append(cam_with_polygon)
             labels_for_vis_data.append(nn_labels[each_pred_label])
-            polygon_intersection.append(q_measure)
+            polygon_intersection.append(q_measure_bin)
 
     return data_to_visualize, labels_for_vis_data, polygon_intersection
+
+
+def compute_intersection_area_using_binary_mask(cam_mask, img_binary_mask):
+    # todo : intelligent numpy center crop  transformation
+    # img_binary_mask = cv2.resize(img_binary_mask, (224, 224, 3))
+    cam_mask = np.where(cam_mask > 0, 1, 0)
+    common_poly = np.bitwise_and(img_binary_mask, cam_mask)
+    common_poly = mask.encode(np.asfortranarray(common_poly).astype('uint8'))
+    common_area = mask.area(common_poly)
+    q_measure = common_area/mask.area(mask.encode(np.asfortranarray(img_binary_mask).astype('uint8')))
+    return q_measure
 
 
 def normalize_image(image):
@@ -168,9 +181,7 @@ def normalize_image(image):
 
 @ex.capture
 def apply_mask_threshold(image, cam, threshold_cam):
-
-    input_shape = image.shape
-    cam_img = cv2.resize(cam, input_shape[:2][::-1])
+    cam_img = cv2.resize(cam, (224, 224))
     cam = np.where(cam_img < np.max(cam_img) * threshold_cam, 0, cam_img)
     return np.uint8(cam*255)
 
@@ -227,7 +238,6 @@ def draw_heatmap_polygon(image, cam):
 
 @ex.capture
 def quantify_polygon_intersection(object_polygons, heatmap_polygons, img_area, _log):
-    # import pdb; pdb.set_trace()
     # todo: getting negative area for heatmap
 
     q_measured = 0
@@ -260,29 +270,6 @@ def quantify_polygon_intersection(object_polygons, heatmap_polygons, img_area, _
             q_measured += float(intersection_poly.area)/img_area
 
     return [np.array(l).ravel().tolist() for l in poly], q_measured
-
-
-        # q_measured += intersection_poly.area / (ob_polygon.area)
-
-    # for ob_poly, heat_poly in product(object_polygons, heatmap_polygons):
-    #     try:
-    #         ob_poly = list(zip(ob_poly[::2], ob_poly[1::2]))
-    #         ob_polygon = Polygon(*ob_poly)
-    #
-    #         heat_poly = list(zip(heat_poly[::2], heat_poly[1::2]))
-    #         heat_polygon = Polygon(*heat_poly)
-    #
-    #         intersection = ob_polygon.intersection(heat_polygon)
-    #         if not intersection: continue
-    #         import pdb;
-    #         pdb.set_trace()
-    #         intersection_poly = Polygon(*intersection)
-    #
-    #         q_measured += intersection_poly.area/(ob_polygon.area)
-    #     except:
-    #         _log.warning("Exception occured")
-    #         pass
-    return q_measured
 
 
 @ex.capture

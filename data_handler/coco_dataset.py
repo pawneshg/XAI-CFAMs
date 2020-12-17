@@ -2,6 +2,8 @@ import torch
 from data_handler.coco_api import CocoCam
 from sacred_config import ex
 from collections import defaultdict
+from pycocotools import mask
+import numpy as np
 
 
 class CocoLoadDataset():
@@ -31,6 +33,12 @@ class CocoLoadDataset():
                     dataset_struct['segmentation'] = anns[max_area_covered_index]['segmentation']
                     dataset_struct['ann_id'] = annsIds[max_area_covered_index]
                     dataset_struct['area'] = anns[max_area_covered_index]['area']
+
+                    mask_area = self.coco.annToMask(anns[max_area_covered_index])
+                    np_mask_area = np.asfortranarray(mask_area)
+                    encoded_mask = mask.encode(np_mask_area)
+                    dataset_struct['mask'] = encoded_mask
+
                     limit_ctrl[cat] += 1
                     dataset.append(dict(dataset_struct))
                 if (set(class_ids) == set(limit_ctrl.keys())) and (len(set(limit_ctrl.values())) == 1):
