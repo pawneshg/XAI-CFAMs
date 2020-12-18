@@ -1,7 +1,7 @@
 import torch
 import cv2
 import os
-from PIL import Image, ImageDraw
+from PIL import Image
 from torch.nn import functional
 import numpy as np
 from model.coco_dataset import get_test_coco_dataset_iter
@@ -10,8 +10,6 @@ from data_handler.coco_api import CocoCam
 from pycocotools import mask
 from collections import defaultdict
 from model.coco_dataset import load_mscoco_metadata, coco_data_transform
-from sympy import Polygon
-import pyclipper
 
 
 @ex.capture
@@ -119,55 +117,70 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
                 img_area = each_data["area"]
                 img_binary_mask = mask.decode(each_data["mask"])
 
-        each_img = each_img.transpose((1, 2, 0))
         each_img = Image.open(os.path.join(val_data_dir, img_name))
-        each_img, object_polygons = draw_object_polygon(each_img, segmentation)
-        each_img = each_img/255
-        # _log.info("Object polygon Dimensions %s", object_polygons)
-        # each_img = each_img.transpose((1, 2, 0))
-        # each_img = normalize_image(each_img)   # remove
 
+        obj_over_img = project_object_mask(img_binary_mask, each_img, color=1)
 
-        data_to_visualize.append(each_img)
+        data_to_visualize.append(obj_over_img)
         labels_for_vis_data.append(nn_labels[each_label])
         polygon_intersection.append(0)
         for each_cam in img_cams:
             # activation map
-            q_measure = 0
-            each_cam = apply_mask_threshold(each_img, each_cam)
-            q_measure_bin = compute_intersection_area_using_binary_mask(each_cam, img_binary_mask)
-            cam_with_img = activation_map_over_img(each_img, each_cam, alpha=0.5)
+            each_cam = apply_mask_threshold(obj_over_img, each_cam)
+            q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_mask)
+            cam_with_img = activation_map_over_img(obj_over_img, each_cam, alpha=0.5)
 
             # polygon of activation map
 
             cam_with_polygon, heatmap_polygons = draw_heatmap_polygon(cam_with_img, each_cam)
             cam_with_polygon = cam_with_polygon.astype(int)
-            # _log.info("Heatmap polygon Dimensions %s", heatmap_polygons)
 
-            # intersection polygon
-            # poly, q_measure = quantify_polygon_intersection(object_polygons, heatmap_polygons, img_area)
-            #
-            # if poly:
-            #   cam_with_polygon, _ = draw_object_polygon(cam_with_polygon, poly, color="yellow")
-            #   cam_with_polygon = cam_with_polygon/255
-            # todo: draw common area.
+            # draw common area
+            common_over_img = project_object_mask(common_mask, cam_with_polygon, color=2)
 
-            data_to_visualize.append(cam_with_polygon)
+
+            data_to_visualize.append(common_over_img)
             labels_for_vis_data.append(nn_labels[each_pred_label])
             polygon_intersection.append(q_measure_bin)
 
     return data_to_visualize, labels_for_vis_data, polygon_intersection
 
 
+def project_object_mask(img_binary_mask, image, color=1):
+
+    alpha = 0.6
+    image = np.asarray(image)
+    img2 = image.copy()
+    bin_mask_ind = np.where(img_binary_mask > 0)
+    img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
+    obj_over_img = (img2 * alpha) + image * (1 - alpha)
+
+    transform = coco_data_transform(input_size=224, data_type="val")
+    # todo: cropping is not perfect.
+    image = Image.fromarray(np.uint8(obj_over_img))
+    img = transform(image).data.numpy().transpose((1, 2, 0))
+    image = normalize_image(img)
+    return image
+
+
 def compute_intersection_area_using_binary_mask(cam_mask, img_binary_mask):
     # todo : intelligent numpy center crop  transformation
     # img_binary_mask = cv2.resize(img_binary_mask, (224, 224, 3))
+    transform = coco_data_transform(input_size=224, data_type="val", gray=True)
+
+    img_binary_mask = np.squeeze(transform(Image.fromarray(img_binary_mask)).data.numpy().transpose((1, 2, 0)))
+    img_binary_mask = np.where(img_binary_mask > 0, 1, 0)
     cam_mask = np.where(cam_mask > 0, 1, 0)
-    common_poly = np.bitwise_and(img_binary_mask, cam_mask)
-    common_poly = mask.encode(np.asfortranarray(common_poly).astype('uint8'))
-    common_area = mask.area(common_poly)
-    q_measure = common_area/mask.area(mask.encode(np.asfortranarray(img_binary_mask).astype('uint8')))
-    return q_measure
+    try:
+        common_mask = np.bitwise_and(img_binary_mask, cam_mask)
+        common_mask = mask.encode(np.asfortranarray(common_mask).astype('uint8'))
+        common_area = mask.area(common_mask)
+        # todo : runtime warning
+        q_measure = common_area/mask.area(mask.encode(np.asfortranarray(img_binary_mask).astype('uint8')))
+    except RuntimeWarning:
+        #todo
+        import pdb; pdb.set_trace()
+    return q_measure, mask.decode(common_mask)
 
 
 def normalize_image(image):
@@ -196,32 +209,6 @@ def activation_map_over_img(image, cam, alpha=0.7):
     return cam_over_img.astype(int)
 
 
-@ex.capture
-def draw_object_polygon(img, segmentation, color="green"):
-    alpha = 0.6
-    if color=="yellow":
-        pass
-    if isinstance(img, np.ndarray):
-        img = Image.fromarray(np.uint8(img))
-    # img = Image.open(os.path.join(val_data_dir, img_name)).convert('RGBA')
-    img = img.convert('RGBA')
-    img2 = img.copy()
-
-    draw = ImageDraw.Draw(img2)
-#    segmentation = [each_data["segmentation"] for each_data in data_ob if each_data["file_name"] == img_name]
-    object_polygons = []
-    try:
-        for each_poly in range(len(segmentation)):
-            draw.polygon(segmentation[each_poly], fill=color, outline='red')
-            object_polygons.append(segmentation[each_poly])
-    except:
-        raise
-    img3 = Image.blend(img, img2, alpha)
-    # transform = coco_data_transform(input_size=224, data_type="val")
-
-    return np.asarray(img3.convert('RGB')), object_polygons
-
-
 def draw_heatmap_polygon(image, cam):
     image = cv2.cvtColor(np.float32(image), cv2.COLOR_RGB2BGR)
     edged = cv2.Canny(cam, 30, 200)
@@ -231,45 +218,7 @@ def draw_heatmap_polygon(image, cam):
     heatmap_polygons = []
     for i_contours in range(len(contours)):
         heatmap_polygons.append(np.squeeze(contours[i_contours]).ravel().tolist())
-    # todo: heatmap_poly is not closed poly
-    # todo: make sure poly is closed
     return cv2.cvtColor(image, cv2.COLOR_BGR2RGB), heatmap_polygons
-
-
-@ex.capture
-def quantify_polygon_intersection(object_polygons, heatmap_polygons, img_area, _log):
-    # todo: getting negative area for heatmap
-
-    q_measured = 0
-    subj = []
-
-    for i in range(len(object_polygons)):
-        subj.append(tuple(zip(object_polygons[i][::2], object_polygons[i][1::2])))
-        # todo: area of object incase of multiple
-        # todo: multiple case scenario.  testing ->remaining
-
-
-    subj = tuple(subj)
-    poly, solution = [], []
-    for i_heatmap in range(len(heatmap_polygons)):
-        clip = tuple(zip(heatmap_polygons[i_heatmap][::2], heatmap_polygons[i_heatmap][1::2]))
-        try:
-            pc = pyclipper.Pyclipper()
-            pc.AddPath(clip, pyclipper.PT_CLIP, True)
-            pc.AddPaths(subj, pyclipper.PT_SUBJECT, True) # todo: polygon open or close? #AddPaths or AddPath
-            solution = pc.Execute(pyclipper.CT_INTERSECTION, pyclipper.PFT_EVENODD, pyclipper.PFT_EVENODD)
-            poly.extend(solution)
-        except pyclipper.ClipperException:
-            _log.warning("invalid for clipping")
-            q_measured = 999999 # assigning invalid number
-
-        if not solution: continue
-        for i_region in range(len(solution)):
-            intersection_poly = Polygon(*solution[i_region])
-
-            q_measured += float(intersection_poly.area)/img_area
-
-    return [np.array(l).ravel().tolist() for l in poly], q_measured
 
 
 @ex.capture

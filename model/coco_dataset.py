@@ -33,10 +33,11 @@ class CocoDataset(Dataset):
         return len(self.data)
 
 
-def coco_data_transform(input_size, data_type):
+def coco_data_transform(input_size, data_type, gray=False):
     """data augmentation and data shaping."""
     normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
                                      std=[0.229, 0.224, 0.225])
+
     val_transform = transforms.Compose([
             transforms.Resize(256),
             transforms.CenterCrop(input_size),
@@ -48,6 +49,12 @@ def coco_data_transform(input_size, data_type):
             transforms.RandomResizedCrop(input_size),
             transforms.ToTensor(),
             normalize,
+        ])
+    if gray:
+        val_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(input_size),
+            transforms.ToTensor(),
         ])
     return train_transform if data_type == "train" else val_transform
 

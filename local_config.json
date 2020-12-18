@@ -21,7 +21,7 @@
 
   "activation_base_dir": ".",
   "activation_save_path": "./results",
-  "num_of_cams": 2,
+  "num_of_cams": 5,
   "num_of_sample_per_class": 4,
   "threshold_cam": 0.80
 
