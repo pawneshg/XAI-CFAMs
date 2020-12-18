@@ -195,7 +195,7 @@ def normalize_image(image):
 @ex.capture
 def apply_mask_threshold(image, cam, threshold_cam):
     cam_img = cv2.resize(cam, (224, 224))
-    cam = np.where(cam_img < np.max(cam_img) * threshold_cam, 0, cam_img)
+    cam = np.where(cam_img < np.percentile(cam_img, threshold_cam), 0, cam_img)
     return np.uint8(cam*255)
 
 
