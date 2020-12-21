@@ -1,7 +1,7 @@
 import json
 from collections import defaultdict
 from pycocotools.coco import COCO
-
+from sacred_config import ex
 
 class CocoCam(COCO):
 
@@ -67,25 +67,21 @@ class CocoCam(COCO):
                 occ_cat.append(cat)
         return occ_cat
 
-    def get_occ_imgs(self):
+    @ex.capture()
+    def get_list_of_excluded_imgsId(self, class_ids):
         """
-        Fetches category wise occ images ids,
+        Returns the list of excluded imageIds category-wise
         """
-        occ_images = defaultdict(list)
         cat_images = defaultdict(list)
-        all_cats = self.cats.keys()
+        all_cats = class_ids
         for k in all_cats:
             cat_images[k] = self.getImgIds(catIds=k)
-
+        exclude_class_imgs = defaultdict(list)
         for cat in all_cats:
-            rest_class_imgs = []
             for cat_i in all_cats:
                 if cat_i == cat:
                     continue
-                rest_class_imgs = list(set(cat_images[cat_i]).union(set(rest_class_imgs)))
-            common = set(cat_images[cat]).intersection(set(rest_class_imgs))
-            occ_img_ids = set(cat_images[cat]).difference(common)
-            occ_images[cat] = list(occ_img_ids)
-            # print(cat, len(occ_images[cat]))
-        return occ_images
+                common = set(cat_images[cat]).intersection(set(cat_images[cat_i]))
+                exclude_class_imgs[cat].extend(list(common))
+        return exclude_class_imgs
 

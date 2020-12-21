@@ -17,27 +17,31 @@ class CocoLoadDataset():
         dataset = []
         limit_ctrl = defaultdict(int)
         imgIds = self.coco.imgs
+        excluded_imgs = self.coco.get_list_of_excluded_imgsId(class_ids)
         for i_img, i_img_meta in imgIds.items():
             try:
-                dataset_struct = defaultdict()
+                dataset_struct = defaultdict(list)
                 annsIds = self.coco.getAnnIds(imgIds=[i_img], iscrowd=0)
                 anns = self.coco.loadAnns(annsIds)
+                if not anns:
+                    continue
+                cat, category_index = self.get_image_label(anns)
 
-                areas_covered_by_all_labels = [i_ann['area'] for i_ann in anns]
-                max_area_covered_index = areas_covered_by_all_labels.index(max(areas_covered_by_all_labels))
-                cat = anns[max_area_covered_index]['category_id']
-                if (cat in class_ids) and (limit_ctrl[cat] < samples_per_class):
-                    dataset_struct['image_id'] = anns[max_area_covered_index]['image_id']
-                    dataset_struct['category_id'] = anns[max_area_covered_index]['category_id']
+                if (cat in class_ids) and (limit_ctrl[cat] < samples_per_class) and \
+                        (anns[category_index[0]]['image_id'] not in excluded_imgs[cat]):
+                    dataset_struct['image_id'] = anns[category_index[0]]['image_id']
+                    dataset_struct['category_id'] = anns[category_index[0]]['category_id']
                     dataset_struct['file_name'] = i_img_meta['file_name']
-                    dataset_struct['segmentation'] = anns[max_area_covered_index]['segmentation']
-                    dataset_struct['ann_id'] = annsIds[max_area_covered_index]
-                    dataset_struct['area'] = anns[max_area_covered_index]['area']
+                    dataset_struct['area'] = 0
+                    for ann_indx, i_ann in enumerate(anns):
+                        if i_ann['category_id'] == cat:
+                            dataset_struct['segmentation'].append(anns[ann_indx]['segmentation'])
+                            dataset_struct['area'] += anns[ann_indx]['area']
 
-                    mask_area = self.coco.annToMask(anns[max_area_covered_index])
-                    np_mask_area = np.asfortranarray(mask_area)
-                    encoded_mask = mask.encode(np_mask_area)
-                    dataset_struct['mask'] = encoded_mask
+                            mask_area = self.coco.annToMask(anns[ann_indx])
+                            np_mask_area = np.asfortranarray(mask_area)
+                            encoded_mask = mask.encode(np_mask_area)
+                            dataset_struct['mask'].append(encoded_mask)
 
                     limit_ctrl[cat] += 1
                     dataset.append(dict(dataset_struct))
@@ -45,9 +49,26 @@ class CocoLoadDataset():
                     print("....Completed.")
                     break
             except:
+                raise
                 # todo: specify exception
-                pass
+
                 # print("\n No ann for img ", i_img)
 
-        _log.info("Training Samples Balance ratio: %s", limit_ctrl)
+        #_log.info("Training Samples Balance ratio: %s", limit_ctrl)
+        print("Training Samples Balance ratio: ", limit_ctrl)
         return dataset
+
+    def get_image_label(self, anns):
+        try:
+            areas_covered_by_all_labels = defaultdict(int)
+            for i_ann in anns:
+                areas_covered_by_all_labels[i_ann['category_id']] += i_ann['area']
+            category = max(areas_covered_by_all_labels, key=areas_covered_by_all_labels.get)
+            category_index = []
+            for ind, i_ann in enumerate(anns):
+                if i_ann['category_id'] == category:
+                    category_index.append(ind)
+        except:
+            raise
+        return category, category_index
+

@@ -65,7 +65,7 @@ def model_save(model, checkpoints, out_dir, epoch_):
 def train_network(network, loss, optimizer, train_iter, val_iter, num_epochs, device='cpu', start_epoch=0,
                   checkpoints=False, out_dir=None, scheduler=None):
     """Train a network."""
-
+    # : Mini-batch implementation.
     # training_cycles = dict(loss=[], acc=[], val_loss=[], val_acc=[])
     best_epoch, best_acc = 0, 0.0
 

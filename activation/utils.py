@@ -111,15 +111,16 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
     for each_img, each_label, img_name, img_cams, each_pred_label in \
             zip(t_images.numpy(), t_labels.numpy(), img_names, cams, pred_label):
         # input image
-        for each_data in data_ob:
-            if each_data["file_name"] == img_name:
-                segmentation = each_data["segmentation"]
-                img_area = each_data["area"]
-                img_binary_mask = mask.decode(each_data["mask"])
+        img_binary_masks = []
+        for i_data in data_ob:
+            if i_data["file_name"] == img_name:
+                segmentation = i_data["segmentation"]
+                img_area = i_data["area"]
+                img_binary_masks = [mask.decode(i_data["mask"][mask_ind]) for mask_ind in range(len(i_data["mask"]))]
 
         each_img = Image.open(os.path.join(val_data_dir, img_name))
 
-        obj_over_img = project_object_mask(img_binary_mask, each_img, color=1)
+        obj_over_img = project_object_mask(img_binary_masks, each_img, color=1)
 
         data_to_visualize.append(obj_over_img)
         labels_for_vis_data.append(nn_labels[each_label])
@@ -127,7 +128,7 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
         for each_cam in img_cams:
             # activation map
             each_cam = apply_mask_threshold(obj_over_img, each_cam)
-            q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_mask)
+            q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
             cam_with_img = activation_map_over_img(obj_over_img, each_cam, alpha=0.5)
 
             # polygon of activation map
@@ -146,13 +147,18 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
     return data_to_visualize, labels_for_vis_data, polygon_intersection
 
 
-def project_object_mask(img_binary_mask, image, color=1):
+def project_object_mask(img_binary_masks, image, color=1):
 
     alpha = 0.6
     image = np.asarray(image)
     img2 = image.copy()
-    bin_mask_ind = np.where(img_binary_mask > 0)
-    img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
+    if isinstance(img_binary_masks, list):
+        for img_binary_mask in img_binary_masks:
+            bin_mask_ind = np.where(img_binary_mask > 0)
+            img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
+    else:
+        bin_mask_ind = np.where(img_binary_masks > 0)
+        img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
     obj_over_img = (img2 * alpha) + image * (1 - alpha)
 
     transform = coco_data_transform(input_size=224, data_type="val")
@@ -163,20 +169,24 @@ def project_object_mask(img_binary_mask, image, color=1):
     return image
 
 
-def compute_intersection_area_using_binary_mask(cam_mask, img_binary_mask):
+def compute_intersection_area_using_binary_mask(cam_mask, img_binary_masks):
     # todo : intelligent numpy center crop  transformation
     # img_binary_mask = cv2.resize(img_binary_mask, (224, 224, 3))
     transform = coco_data_transform(input_size=224, data_type="val", gray=True)
+    img_binary_mask_0 = np.squeeze(transform(Image.fromarray(img_binary_masks[0])).data.numpy().transpose((1, 2, 0)))
+    img_binary_mask_union = np.where(img_binary_mask_0 > 0, 1, 0)
+    for img_binary_mask in img_binary_masks[1:]:
+        img_binary_mask = np.squeeze(transform(Image.fromarray(img_binary_mask)).data.numpy().transpose((1, 2, 0)))
+        img_binary_mask = np.where(img_binary_mask > 0, 1, 0)
+        img_binary_mask_union = np.bitwise_or(img_binary_mask_union, img_binary_mask)
 
-    img_binary_mask = np.squeeze(transform(Image.fromarray(img_binary_mask)).data.numpy().transpose((1, 2, 0)))
-    img_binary_mask = np.where(img_binary_mask > 0, 1, 0)
     cam_mask = np.where(cam_mask > 0, 1, 0)
     try:
-        common_mask = np.bitwise_and(img_binary_mask, cam_mask)
+        common_mask = np.bitwise_and(img_binary_mask_union, cam_mask)
         common_mask = mask.encode(np.asfortranarray(common_mask).astype('uint8'))
         common_area = mask.area(common_mask)
         # todo : runtime warning
-        q_measure = common_area/mask.area(mask.encode(np.asfortranarray(img_binary_mask).astype('uint8')))
+        q_measure = common_area/mask.area(mask.encode(np.asfortranarray(img_binary_mask_union).astype('uint8')))
     except RuntimeWarning:
         #todo
         import pdb; pdb.set_trace()
@@ -195,6 +205,7 @@ def normalize_image(image):
 @ex.capture
 def apply_mask_threshold(image, cam, threshold_cam):
     cam_img = cv2.resize(cam, (224, 224))
+    # Todo: percentile
     cam = np.where(cam_img < np.percentile(cam_img, threshold_cam), 0, cam_img)
     return np.uint8(cam*255)
 
