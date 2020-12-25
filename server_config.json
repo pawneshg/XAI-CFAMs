@@ -9,7 +9,7 @@
   "train_data_dir": "/ds/images/MSCOCO2017/train2017",
   "val_data_dir": "/ds/images/MSCOCO2017/val2017",
   "num_workers": 4,
-  "batch_size": 125,
+  "batch_size": 256,
 
   "pretrain": true,
   "finetune": true,
