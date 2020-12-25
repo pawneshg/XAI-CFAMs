@@ -6,6 +6,7 @@ from torchvision import transforms
 from PIL import Image
 from sacred_config import ex
 from data_handler.coco_dataset import CocoLoadDataset
+from model.autoaugment import ImageNetPolicy
 
 # from data_handler.extract_coco_metainfo import CocoCam
 
@@ -39,17 +40,20 @@ def coco_data_transform(input_size, data_type, gray=False):
                                      std=[0.229, 0.224, 0.225])
 
     val_transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(input_size),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
     train_transform = transforms.Compose([
-            transforms.RandomHorizontalFlip(),
-            transforms.RandomResizedCrop(input_size),
-            transforms.ToTensor(),
-            normalize,
-        ])
+        transforms.RandomResizedCrop(224),
+        transforms.RandomHorizontalFlip(),
+        ImageNetPolicy(),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
     if gray:
         val_transform = transforms.Compose([
             transforms.Resize(256),

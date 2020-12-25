@@ -14,10 +14,10 @@
   "pretrain": true,
   "finetune": true,
   "start_epoch": 0,
-  "end_epoch": 5,
+  "end_epoch": 50,
   "checkpoints": true,
   "save_weights_loc": "/netscratch/kumar/cam/model/weights",
-  "weights_load_path": "/netscratch/kumar/cam/model/weights/resnet_weight_11dec.pth",
+  "weights_load_path": "",
 
   "activation_base_dir": "/netscratch/kumar/cam",
   "activation_save_path": "/netscratch/kumar/cam/results",
