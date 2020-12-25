@@ -40,7 +40,7 @@ def resnet18(pretrain, class_ids, finetune, weights_load_path, end_epoch, start_
     else:
         loss = torch.nn.CrossEntropyLoss().to(device)
         #optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-4, momentum=0.9, nesterov=True)
-        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=5e-4)
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-4, weight_decay=5e-4)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.1)
         train_data_iter, val_data_iter = get_coco_train_test_iter()
         _ = train_network(network=model, loss=loss, optimizer=optimizer, train_iter=train_data_iter, val_iter=val_data_iter,
