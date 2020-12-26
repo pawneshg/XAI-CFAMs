@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from activation.utils import *
-from sacred_config import ex
+import activation.config as cf
 
 
 def base_vis_template(images, titles, poly_intersection, figsize, ncols, nrows, save_path):
@@ -25,8 +25,7 @@ def base_vis_template(images, titles, poly_intersection, figsize, ncols, nrows, 
     return True
 
 
-@ex.capture
-def coco_activation_map_visualization(_log, model, class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
+def coco_activation_map_visualization(model, class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
     """ Visualize the activation maps of a prediction model. """
     is_success = False
     len_of_labels = int(len(class_ids))
@@ -34,7 +33,8 @@ def coco_activation_map_visualization(_log, model, class_ids, activation_save_pa
     start_ind, ind = 0, 0
     fig_size = (20, 20)
     data_to_visualize, labels_for_vis_data, poly_intersection = construct_visualization_data(
-        model=model, data_to_visualize_func=get_coco_samples_per_class)
+        model=model, data_to_visualize_func=get_coco_samples_per_class, num_of_cams=cf.num_of_cams, class_ids=cf.class_ids,
+        val_data_dir=cf.val_data_dir)
     file_name_itr = iter(labels_for_vis_data[::num_of_cams+1][::nrows])
     for ind in range(0, len_of_labels*num_of_sample_per_class, nrows):
         end_ind = start_ind + (nrows*(num_of_cams+1))
@@ -42,11 +42,8 @@ def coco_activation_map_visualization(_log, model, class_ids, activation_save_pa
                                        poly_intersection[start_ind:end_ind], figsize=fig_size, nrows=nrows, ncols=num_of_cams+1,
                                        save_path=f"{activation_save_path}/{next(file_name_itr)}.jpg")
         if not is_success:
-            _log.error("Error in visualization ")
             raise ValueError
         start_ind += nrows*(num_of_cams+1)
-    _log.debug("start_ind %d", start_ind)
-    _log.debug("length of data  %d", len(data_to_visualize))
     if len(data_to_visualize) > start_ind:
         is_success = base_vis_template(data_to_visualize[start_ind:], labels_for_vis_data[start_ind:], poly_intersection[start_ind:end_ind],
                                        figsize=fig_size,

@@ -5,14 +5,14 @@ from PIL import Image
 from torch.nn import functional
 import numpy as np
 from model.coco_dataset import get_test_coco_dataset_iter
-from sacred_config import ex
+
 from data_handler.coco_api import CocoCam
 from pycocotools import mask
 from collections import defaultdict
+import activation.config as cf
 from model.coco_dataset import load_mscoco_metadata, coco_data_transform
 
 
-@ex.capture
 def extract_features_and_pred_label_from_nn(model, data):
     """predict the label for an image."""
     last_conv_layer = "layer4"
@@ -31,8 +31,7 @@ def extract_features_and_pred_label_from_nn(model, data):
     return result, features_blobs
 
 
-@ex.capture
-def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
+def extract_activation_maps(model, features, pred_label, num_of_cams):
     """ class activation map."""
     last_layer_weights = list(model.parameters())[-2]
     size_upsample = (224, 224) # verify input img size
@@ -45,8 +44,8 @@ def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
         each_img_cams = list()
         for each_map_id in top_activation_map_ids:
             cam = features[0][id][each_map_id]
-            _log.debug("cam min value:", np.min(cam))
-            _log.debug("cam max value:", np.max(cam))
+            # _log.debug("cam min value:", np.min(cam))
+            # _log.debug("cam max value:", np.max(cam))
             cam = np.maximum(cam, 0)
             cam -= np.min(cam)
             cam /= np.max(cam)
@@ -55,18 +54,17 @@ def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
     return cams
 
 
-@ex.capture
-def get_coco_samples_per_class(_log, number_of_classes, num_of_sample_per_class):
+def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
     """ Fetch samples for each class and arrange images in an order with the class_id
     """
     images = defaultdict(list)
     labels = defaultdict(list)
     img_id = defaultdict(list)
-    _log.info("Getting Test coco dataset.")
+
     test_data_iter = get_test_coco_dataset_iter()
     data_ob = load_mscoco_metadata(data_type="val")
     visited_classes = defaultdict(int)
-    _log.info("Extracting one data per class.")
+
     for data_batch, label_batch, data_id in test_data_iter:
         for data, label, id in zip(data_batch, label_batch, data_id):
             segmentation = [each_data["segmentation"] for each_data in data_ob if each_data["file_name"] == id]
@@ -86,26 +84,26 @@ def get_coco_samples_per_class(_log, number_of_classes, num_of_sample_per_class)
         imgs.extend(images[key])
         labels_.extend(labels[key])
         img_names.extend(img_id[key])
-    _log.debug("visited_classes Map:", visited_classes)
+
     return torch.stack(imgs), torch.Tensor(labels_), img_names
 
 
-@ex.capture
-def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
+def construct_visualization_data(model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
     """ Pre-Process Visualization data. input_image, cam1, cam2 ."""
     data_to_visualize = []
     labels_for_vis_data = []
     polygon_intersection = []
-    _log.info("Fetching visualization data.")
-    t_images, t_labels, img_names = data_to_visualize_func()
-    _log.info("Extracting model features and labels.")
+
+    t_images, t_labels, img_names = data_to_visualize_func(num_of_sample_per_class=cf.num_of_sample_per_class,
+                                                           number_of_classes=len(cf.class_ids))
+
     t_topk, features = extract_features_and_pred_label_from_nn(model, t_images)
     probs, pred_label = t_topk
     probs, pred_label = probs.detach().numpy(), np.squeeze(pred_label.detach().numpy())
-    _log.info("Constructing activation maps.")
+
     cams = extract_activation_maps(model, features, pred_label, num_of_cams)
-    _log.info("Fetching class names.")
-    nn_labels = extract_class_names(class_ids)
+
+    nn_labels = extract_class_names(class_ids, cf.val_ann_file)
     data_ob = load_mscoco_metadata(data_type="val")
 
     for each_img, each_label, img_name, img_cams, each_pred_label in \
@@ -127,7 +125,7 @@ def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cam
         polygon_intersection.append(0)
         for each_cam in img_cams:
             # activation map
-            each_cam = apply_mask_threshold(obj_over_img, each_cam)
+            each_cam = apply_mask_threshold(obj_over_img, each_cam, cf.threshold_cam)
             q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
             cam_with_img = activation_map_over_img(obj_over_img, each_cam, alpha=0.5)
 
@@ -202,7 +200,6 @@ def normalize_image(image):
     return image
 
 
-@ex.capture
 def apply_mask_threshold(image, cam, threshold_cam):
     cam_img = cv2.resize(cam, (224, 224))
     # Todo: percentile
@@ -232,7 +229,6 @@ def draw_heatmap_polygon(image, cam):
     return cv2.cvtColor(image, cv2.COLOR_BGR2RGB), heatmap_polygons
 
 
-@ex.capture
 def extract_class_names(class_ids, val_ann_file):
     """Maps nerual networks class ids with dataset class id and return maps of class_id and class name."""
     class_ids_map_with_nn = {key: ind for ind, key in enumerate(class_ids)}
