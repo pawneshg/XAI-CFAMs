@@ -1,5 +1,4 @@
 import os
-import json
 from torch.utils.data import DataLoader, random_split
 from torch.utils.data.dataset import Dataset
 from torchvision import transforms
@@ -27,7 +26,7 @@ class CocoDataset(Dataset):
         cat = self.target_label_mapping[self.data[index]["category_id"]]
         if self.mode == "train":
             return self.transform(img), cat
-        else:
+        elif self.mode == "test":
             return self.transform(img), cat, self.data[index]["file_name"]
 
     def __len__(self):
@@ -36,12 +35,17 @@ class CocoDataset(Dataset):
 
 def coco_data_transform(input_size, data_type, gray=False):
     """data augmentation and data shaping."""
-    normalize = transforms.Normalize(mean=[0.485, 0.456, 0.406],
-                                     std=[0.229, 0.224, 0.225])
+
+    test_transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
 
     val_transform = transforms.Compose([
         transforms.RandomResizedCrop(224),
-        transforms.RandomHorizontalFlip(),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
@@ -54,13 +58,12 @@ def coco_data_transform(input_size, data_type, gray=False):
         transforms.Normalize(mean=[0.485, 0.456, 0.406],
                              std=[0.229, 0.224, 0.225])
     ])
-    if gray:
-        val_transform = transforms.Compose([
-            transforms.Resize(256),
-            transforms.CenterCrop(input_size),
-            transforms.ToTensor(),
-        ])
-    return train_transform if data_type == "train" else val_transform
+    if data_type == "train":
+        return train_transform
+    elif data_type == "val":
+        return val_transform
+    elif data_type == "test":
+        return test_transform
 
 
 def load_mscoco_metadata(data_type):
@@ -86,7 +89,7 @@ def initialize_dataloader(dataset, batch_size, shuffle, num_workers):
 
 
 @ex.capture
-def get_coco_train_test_iter(class_ids, train_data_dir, num_workers, batch_size):
+def get_coco_train_val_iter(class_ids, train_data_dir, num_workers, batch_size):
     """Dataset Iterator for mscoco dataset."""
     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
 
@@ -113,15 +116,15 @@ def get_coco_train_test_iter(class_ids, train_data_dir, num_workers, batch_size)
 #
 #     return train_data_iter
 
-@ex.capture
-def get_test_coco_dataset_iter(class_ids, val_data_dir, batch_size, num_workers, _log):
+
+def get_test_coco_dataset_iter(class_ids, val_data_dir, batch_size, num_workers):
     """Test Dataset Iter for mscoco dataset"""
-    _log.info("started: get_test_coco_dataset_iter")
+    #_log.info("started: get_test_coco_dataset_iter")
     target_label_mapping = {val: ind_ for ind_, val in enumerate(class_ids)}
     test_dataset = init_coco_dataset(val_data_dir, target_label_mapping,
-                                     data_type="val", model_name="resnet18")
-    _log.info("Test dataset: Intializing Dataloader.")
+                                     data_type="test", model_name="resnet18")
+    #_log.info("Test dataset: Intializing Dataloader.")
     test_data_iter = initialize_dataloader(test_dataset, batch_size, shuffle=True, num_workers=num_workers)
-    _log.info("ended: get_test_coco_dataset_iter")
+    #_log.info("ended: get_test_coco_dataset_iter")
     return test_data_iter
 

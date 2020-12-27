@@ -10,7 +10,22 @@ from data_handler.coco_api import CocoCam
 from pycocotools import mask
 from collections import defaultdict
 import activation.config as cf
-from model.coco_dataset import load_mscoco_metadata, coco_data_transform
+from model.coco_dataset import load_mscoco_metadata
+from torchvision import transforms
+
+img_transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
+
+gray_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+        ])
 
 
 def extract_features_and_pred_label_from_nn(model, data):
@@ -61,7 +76,7 @@ def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
     labels = defaultdict(list)
     img_id = defaultdict(list)
 
-    test_data_iter = get_test_coco_dataset_iter()
+    test_data_iter = get_test_coco_dataset_iter(cf.class_ids, cf.val_data_dir, cf.batch_size, cf.num_workers)
     data_ob = load_mscoco_metadata(data_type="val")
     visited_classes = defaultdict(int)
 
@@ -159,10 +174,9 @@ def project_object_mask(img_binary_masks, image, color=1):
         img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
     obj_over_img = (img2 * alpha) + image * (1 - alpha)
 
-    transform = coco_data_transform(input_size=224, data_type="val")
     # todo: cropping is not perfect.
     image = Image.fromarray(np.uint8(obj_over_img))
-    img = transform(image).data.numpy().transpose((1, 2, 0))
+    img = img_transform(image).data.numpy().transpose((1, 2, 0))
     image = normalize_image(img)
     return image
 
@@ -170,11 +184,10 @@ def project_object_mask(img_binary_masks, image, color=1):
 def compute_intersection_area_using_binary_mask(cam_mask, img_binary_masks):
     # todo : intelligent numpy center crop  transformation
     # img_binary_mask = cv2.resize(img_binary_mask, (224, 224, 3))
-    transform = coco_data_transform(input_size=224, data_type="val", gray=True)
-    img_binary_mask_0 = np.squeeze(transform(Image.fromarray(img_binary_masks[0])).data.numpy().transpose((1, 2, 0)))
+    img_binary_mask_0 = np.squeeze(gray_transform(Image.fromarray(img_binary_masks[0])).data.numpy().transpose((1, 2, 0)))
     img_binary_mask_union = np.where(img_binary_mask_0 > 0, 1, 0)
     for img_binary_mask in img_binary_masks[1:]:
-        img_binary_mask = np.squeeze(transform(Image.fromarray(img_binary_mask)).data.numpy().transpose((1, 2, 0)))
+        img_binary_mask = np.squeeze(gray_transform(Image.fromarray(img_binary_mask)).data.numpy().transpose((1, 2, 0)))
         img_binary_mask = np.where(img_binary_mask > 0, 1, 0)
         img_binary_mask_union = np.bitwise_or(img_binary_mask_union, img_binary_mask)
 

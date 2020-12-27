@@ -4,3 +4,5 @@ val_data_dir = "../../datasets/coco/val2017"
 num_of_sample_per_class = 4
 val_ann_file = "../../datasets/coco/annotations/instances_val2017.json"
 threshold_cam = 95
+batch_size = 64
+num_workers = 0

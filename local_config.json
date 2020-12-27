@@ -17,12 +17,12 @@
   "end_epoch": 2,
   "checkpoints": true,
   "save_weights_loc": "./model/weights",
-  "weights_load_path": "./model/weights/resnet_weight_11dec.pth",
+  "weights_load_path": "./model/weights/weight_snap_27dec.pth",
 
   "activation_base_dir": ".",
   "activation_save_path": "./results",
   "num_of_cams": 5,
   "num_of_sample_per_class": 4,
-  "threshold_cam": 0.80
+  "threshold_cam": 0.95
 
 }
