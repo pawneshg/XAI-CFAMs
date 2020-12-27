@@ -12,6 +12,8 @@ from collections import defaultdict
 import activation.config as cf
 from model.coco_dataset import load_mscoco_metadata
 from torchvision import transforms
+# import warnings
+# warnings.filterwarnings("error")
 
 img_transform = transforms.Compose([
         transforms.Resize(256),
@@ -51,7 +53,7 @@ def extract_activation_maps(model, features, pred_label, num_of_cams):
     last_layer_weights = list(model.parameters())[-2]
     size_upsample = (224, 224) # verify input img size
     avg_pool_features = features[1]
-    # todo: Remove for loops.
+
     cams = []
     for id, each_sample_class_idx in enumerate(np.squeeze(pred_label)):
         top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * torch.Tensor(np.squeeze(avg_pool_features[id])),
@@ -182,7 +184,6 @@ def project_object_mask(img_binary_masks, image, color=1):
 
 
 def compute_intersection_area_using_binary_mask(cam_mask, img_binary_masks):
-    # todo : intelligent numpy center crop  transformation
     # img_binary_mask = cv2.resize(img_binary_mask, (224, 224, 3))
     img_binary_mask_0 = np.squeeze(gray_transform(Image.fromarray(img_binary_masks[0])).data.numpy().transpose((1, 2, 0)))
     img_binary_mask_union = np.where(img_binary_mask_0 > 0, 1, 0)
@@ -192,15 +193,17 @@ def compute_intersection_area_using_binary_mask(cam_mask, img_binary_masks):
         img_binary_mask_union = np.bitwise_or(img_binary_mask_union, img_binary_mask)
 
     cam_mask = np.where(cam_mask > 0, 1, 0)
-    try:
-        common_mask = np.bitwise_and(img_binary_mask_union, cam_mask)
-        common_mask = mask.encode(np.asfortranarray(common_mask).astype('uint8'))
-        common_area = mask.area(common_mask)
-        # todo : runtime warning
-        q_measure = common_area/mask.area(mask.encode(np.asfortranarray(img_binary_mask_union).astype('uint8')))
-    except RuntimeWarning:
-        #todo
-        import pdb; pdb.set_trace()
+
+    common_mask = np.bitwise_and(img_binary_mask_union, cam_mask)
+    common_mask = mask.encode(np.asfortranarray(common_mask).astype('uint8'))
+    common_area = mask.area(common_mask)
+
+    fortran_arr = np.asfortranarray(img_binary_mask_union).astype('uint8')
+    if np.max(fortran_arr) == 0:
+        q_measure = 0.0
+    else:
+        q_measure = common_area/mask.area(mask.encode(fortran_arr))
+
     return q_measure, mask.decode(common_mask)
 
 
@@ -215,7 +218,6 @@ def normalize_image(image):
 
 def apply_mask_threshold(image, cam, threshold_cam):
     cam_img = cv2.resize(cam, (224, 224))
-    # Todo: percentile
     cam = np.where(cam_img < np.percentile(cam_img, threshold_cam), 0, cam_img)
     return np.uint8(cam*255)
 
