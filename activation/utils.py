@@ -105,61 +105,86 @@ def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
     return torch.stack(imgs), torch.Tensor(labels_), img_names
 
 
-def construct_visualization_data(model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
-    """ Pre-Process Visualization data. input_image, cam1, cam2 ."""
-    data_to_visualize = []
-    labels_for_vis_data = []
-    polygon_intersection = []
+class ResultsData:
 
-    t_images, t_labels, img_names = data_to_visualize_func(num_of_sample_per_class=cf.num_of_sample_per_class,
-                                                           number_of_classes=len(cf.class_ids))
+    def __init__(self, model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
+        # test data # todo remove filters from test data set
+        self.t_images, self.t_labels, self.img_names = data_to_visualize_func(
+            num_of_sample_per_class=cf.num_of_sample_per_class, number_of_classes=len(cf.class_ids))
+        # extract features and predicted label from the neural network
+        self.t_topk, self.features = extract_features_and_pred_label_from_nn(model, self.t_images)
+        self.probs, self.pred_label = self.t_topk
+        self.probs, self.pred_label = self.probs.detach().numpy(), np.squeeze(self.pred_label.detach().numpy())
+        # fetched activation maps for the predicated labels.
+        self.cams = extract_activation_maps(model, self.features, self.pred_label, num_of_cams)
+        self.nn_labels = extract_class_names(class_ids, cf.val_ann_file)
+        # load test data
+        self.data_ob = load_mscoco_metadata(data_type="val")
+        self.val_data_dir = val_data_dir
 
-    t_topk, features = extract_features_and_pred_label_from_nn(model, t_images)
-    probs, pred_label = t_topk
-    probs, pred_label = probs.detach().numpy(), np.squeeze(pred_label.detach().numpy())
+    def construct_visualization_data(self):
+        """ Pre-Process Visualization data. input_image, cam1, cam2 ."""
+        data_to_visualize, labels_for_vis_data, polygon_intersection = [], [], []
+        for each_img, each_label, img_name, img_cams, each_pred_label in \
+                zip(self.t_images.numpy(), self.t_labels.numpy(), self.img_names, self.cams, self.pred_label):
+            # input image
+            img_binary_masks = []
+            for i_data in self.data_ob:
+                if i_data["file_name"] == img_name:
+                    img_binary_masks = [mask.decode(i_data["mask"][mask_ind]) for mask_ind in
+                                        range(len(i_data["mask"]))]
+                    break
 
-    cams = extract_activation_maps(model, features, pred_label, num_of_cams)
+            each_img = Image.open(os.path.join(self.val_data_dir, img_name))
 
-    nn_labels = extract_class_names(class_ids, cf.val_ann_file)
-    data_ob = load_mscoco_metadata(data_type="val")
+            obj_over_img = project_object_mask(img_binary_masks, each_img, color=1)
 
-    for each_img, each_label, img_name, img_cams, each_pred_label in \
-            zip(t_images.numpy(), t_labels.numpy(), img_names, cams, pred_label):
-        # input image
-        img_binary_masks = []
-        for i_data in data_ob:
-            if i_data["file_name"] == img_name:
-                segmentation = i_data["segmentation"]
-                img_area = i_data["area"]
-                img_binary_masks = [mask.decode(i_data["mask"][mask_ind]) for mask_ind in range(len(i_data["mask"]))]
+            data_to_visualize.append(obj_over_img)
+            labels_for_vis_data.append(self.nn_labels[each_label])
+            polygon_intersection.append(0)
+            for each_cam in img_cams:
+                # activation map
+                each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
+                q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
+                cam_with_img = activation_map_over_img(obj_over_img, each_cam, alpha=0.5)
 
-        each_img = Image.open(os.path.join(val_data_dir, img_name))
+                # polygon of activation map
 
-        obj_over_img = project_object_mask(img_binary_masks, each_img, color=1)
+                cam_with_polygon, heatmap_polygons = draw_heatmap_polygon(cam_with_img, each_cam)
+                cam_with_polygon = cam_with_polygon.astype(int)
 
-        data_to_visualize.append(obj_over_img)
-        labels_for_vis_data.append(nn_labels[each_label])
-        polygon_intersection.append(0)
-        for each_cam in img_cams:
-            # activation map
-            each_cam = apply_mask_threshold(obj_over_img, each_cam, cf.threshold_cam)
-            q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
-            cam_with_img = activation_map_over_img(obj_over_img, each_cam, alpha=0.5)
+                # draw common area
+                common_over_img = project_object_mask(common_mask, cam_with_polygon, color=2)
 
-            # polygon of activation map
+                data_to_visualize.append(common_over_img)
+                labels_for_vis_data.append(self.nn_labels[each_pred_label])
+                polygon_intersection.append(q_measure_bin)
 
-            cam_with_polygon, heatmap_polygons = draw_heatmap_polygon(cam_with_img, each_cam)
-            cam_with_polygon = cam_with_polygon.astype(int)
+        return data_to_visualize, labels_for_vis_data, polygon_intersection
 
-            # draw common area
-            common_over_img = project_object_mask(common_mask, cam_with_polygon, color=2)
+    def construct_eval_matrix_data(self):
+        labels_for_vis_data, q_measure = [], []
+        for each_label, img_name, img_cams, each_pred_label in \
+                zip(self.t_labels.numpy(), self.img_names, self.cams, self.pred_label):
+            # input image
+            img_binary_masks = []
+            for i_data in self.data_ob:
+                if i_data["file_name"] == img_name:
+                    img_binary_masks = [mask.decode(i_data["mask"][mask_ind]) for mask_ind in
+                                        range(len(i_data["mask"]))]
+            # ground truth
+            labels_for_vis_data.append(self.nn_labels[each_label])
+            q_measure.append(0.0)
+            for each_cam in img_cams:
+                # threshold on activation map
+                each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
+                # intersection area
+                q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
+                # predicted label
+                labels_for_vis_data.append(self.nn_labels[each_pred_label])
+                q_measure.append(q_measure_bin)
 
-
-            data_to_visualize.append(common_over_img)
-            labels_for_vis_data.append(nn_labels[each_pred_label])
-            polygon_intersection.append(q_measure_bin)
-
-    return data_to_visualize, labels_for_vis_data, polygon_intersection
+        return labels_for_vis_data, q_measure
 
 
 def project_object_mask(img_binary_masks, image, color=1):
@@ -216,7 +241,7 @@ def normalize_image(image):
     return image
 
 
-def apply_mask_threshold(image, cam, threshold_cam):
+def apply_mask_threshold(cam, threshold_cam):
     cam_img = cv2.resize(cam, (224, 224))
     cam = np.where(cam_img < np.percentile(cam_img, threshold_cam), 0, cam_img)
     return np.uint8(cam*255)

@@ -17,5 +17,5 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
                                                    num_of_cams=num_of_cams, num_of_sample_per_class=num_of_sample_per_class)
     if is_success:
         print("Successfully completed Visualization.")
-    matrix = eval_nn.eval_metric()
-    print(matrix)
+    # matrix = eval_nn.eval_metric()
+    # print(matrix)

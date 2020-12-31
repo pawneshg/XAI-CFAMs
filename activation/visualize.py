@@ -28,14 +28,15 @@ def base_vis_template(images, titles, poly_intersection, figsize, ncols, nrows, 
 
 class EvaluationNN():
     def __init__(self, model):
-        self.data_to_visualize, self.labels_for_vis_data, self.poly_intersection = construct_visualization_data(
-            model=model, data_to_visualize_func=get_coco_samples_per_class, num_of_cams=cf.num_of_cams,
-            class_ids=cf.class_ids,
-            val_data_dir=cf.val_data_dir)
-        self.q_measure = self.poly_intersection
+
+        self.result_data = ResultsData(model=model, data_to_visualize_func=get_coco_samples_per_class, num_of_cams=cf.num_of_cams,
+                                       class_ids=cf.class_ids, val_data_dir=cf.val_data_dir)
+        self.data_to_visualize, self.labels_for_vis_data, self.poly_intersection = None, None, None
 
     def coco_activation_map_visualization(self, class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
         """ Visualize the activation maps of a prediction model. """
+        self.data_to_visualize, self.labels_for_vis_data, self.poly_intersection = \
+            self.result_data.construct_visualization_data()
         is_success = False
         len_of_labels = int(len(class_ids))
         nrows = num_of_sample_per_class
@@ -47,7 +48,7 @@ class EvaluationNN():
             end_ind = start_ind + (nrows*(num_of_cams+1))
             is_success = base_vis_template(self.data_to_visualize[start_ind:end_ind], self.labels_for_vis_data[start_ind:end_ind],
                                            self.poly_intersection[start_ind:end_ind], figsize=fig_size, nrows=nrows, ncols=num_of_cams+1,
-                                           save_path=f"{activation_save_path}/{next(file_name_itr)}.jpg")
+                                           save_path=f"{activation_save_path}/{next(file_name_itr)}.pdf")
             if not is_success:
                 raise ValueError
             start_ind += nrows*(num_of_cams+1)
@@ -55,10 +56,12 @@ class EvaluationNN():
             is_success = base_vis_template(self.data_to_visualize[start_ind:], self.labels_for_vis_data[start_ind:], self.poly_intersection[start_ind:end_ind],
                                            figsize=fig_size,
                                            nrows=nrows, ncols=num_of_cams+1,
-                                           save_path=f"{activation_save_path}/{next(file_name_itr)}.jpg")
+                                           save_path=f"{activation_save_path}/{next(file_name_itr)}.pdf")
         return is_success
 
     def eval_metric(self):
+        self.labels_for_vis_data, self.q_measure = \
+            self.result_data.construct_eval_matrix_data()
         ground_truths = self.labels_for_vis_data[::cf.num_of_cams+1]
         pred_labels = self.labels_for_vis_data[1::cf.num_of_cams+1]
         q_measures = [self.q_measure[ind:ind+cf.num_of_cams] for ind in range(len(self.q_measure))[1::cf.num_of_cams+1]]
