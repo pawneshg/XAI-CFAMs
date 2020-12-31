@@ -60,24 +60,35 @@ class EvaluationNN():
         return is_success
 
     def eval_metric(self):
-        self.labels_for_vis_data, self.q_measure = \
+        ground_truths, prediction, q_measure = \
             self.result_data.construct_eval_matrix_data()
-        ground_truths = self.labels_for_vis_data[::cf.num_of_cams+1]
-        pred_labels = self.labels_for_vis_data[1::cf.num_of_cams+1]
-        q_measures = [self.q_measure[ind:ind+cf.num_of_cams] for ind in range(len(self.q_measure))[1::cf.num_of_cams+1]]
+        # ground_truths = self.labels_for_vis_data[::cf.num_of_cams+1]
+        # pred_labels = self.labels_for_vis_data[1::cf.num_of_cams+1]
+        # q_measures = [self.q_measure[ind:ind+cf.num_of_cams] for ind in range(len(self.q_measure))[1::cf.num_of_cams+1]]
 
-        matrix = dict()
-        for ind, ground_label, pred_label in zip(range(len(ground_truths)), ground_truths, pred_labels):
+        matrix = np.zeros((512, 120))
+        bin_matrix = np.zeros((512, 120))
+        q_map = defaultdict(list)
+        # aggregate
+        for ind, ground_label, pred_label, measure in zip(range(len(ground_truths)), ground_truths, prediction, q_measure):
             if ground_label != pred_label:
                 continue
-            if matrix.get(ground_label) is None:
-                matrix[ground_label] = []
-                matrix[ground_label].append(q_measures[ind])
-                continue
-            matrix[ground_label].append(q_measures[ind])
-        matrix = {key: np.array(val) for key, val in matrix.items()}
-        matrix = {key: np.median(val, axis=0) for key, val in matrix.items()}
+            for cam_id, cam_measure in measure:
+                q_map[(cam_id, pred_label)].append(cam_measure)
+                bin_matrix[cam_id, pred_label] = 1
 
-        df = pd.DataFrame.from_dict(matrix)
+        # compute median
+        for key, val in q_map.items():
+            # if len(val) < 5:
+            #     q_map[key] = 0
+            #     continue
+            q_map[key] = np.median(val)
+
+        # assigning to matrix
+        for key, median_value in q_map.items():
+            matrix[key[0], key[1]] = median_value
+
+        df = pd.DataFrame(matrix)
+        #df.columns =
         df.to_csv(f"eval_matrix.csv")
         return matrix

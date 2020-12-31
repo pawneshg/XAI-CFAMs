@@ -13,9 +13,9 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
     # print("Model Test Loss", loss)
     # print("Visualalizing .. ")
     eval_nn = EvaluationNN(model)
-    is_success = eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path=activation_save_path,
-                                                   num_of_cams=num_of_cams, num_of_sample_per_class=num_of_sample_per_class)
-    if is_success:
-        print("Successfully completed Visualization.")
-    # matrix = eval_nn.eval_metric()
-    # print(matrix)
+    # is_success = eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path=activation_save_path,
+    #                                                num_of_cams=num_of_cams, num_of_sample_per_class=num_of_sample_per_class)
+    # if is_success:
+    #     print("Successfully completed Visualization.")
+    matrix = eval_nn.eval_metric()
+    print(matrix)

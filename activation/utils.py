@@ -59,14 +59,14 @@ def extract_activation_maps(model, features, pred_label, num_of_cams):
         top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * torch.Tensor(np.squeeze(avg_pool_features[id])),
                                             k=num_of_cams).indices.numpy()
         each_img_cams = list()
-        for each_map_id in top_activation_map_ids:
-            cam = features[0][id][each_map_id]
+        for cam_id in top_activation_map_ids:
+            cam = features[0][id][cam_id]
             # _log.debug("cam min value:", np.min(cam))
             # _log.debug("cam max value:", np.max(cam))
             cam = np.maximum(cam, 0)
             cam -= np.min(cam)
             cam /= np.max(cam)
-            each_img_cams.append(cam)
+            each_img_cams.append((cam_id, cam))
         cams.append(each_img_cams)
     return cams
 
@@ -142,7 +142,7 @@ class ResultsData:
             data_to_visualize.append(obj_over_img)
             labels_for_vis_data.append(self.nn_labels[each_label])
             polygon_intersection.append(0)
-            for each_cam in img_cams:
+            for _, each_cam in img_cams:
                 # activation map
                 each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
                 q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
@@ -163,9 +163,10 @@ class ResultsData:
         return data_to_visualize, labels_for_vis_data, polygon_intersection
 
     def construct_eval_matrix_data(self):
-        labels_for_vis_data, q_measure = [], []
+        ground_truth, prediction, q_measure = [], [], []
         for each_label, img_name, img_cams, each_pred_label in \
                 zip(self.t_labels.numpy(), self.img_names, self.cams, self.pred_label):
+
             # input image
             img_binary_masks = []
             for i_data in self.data_ob:
@@ -173,18 +174,19 @@ class ResultsData:
                     img_binary_masks = [mask.decode(i_data["mask"][mask_ind]) for mask_ind in
                                         range(len(i_data["mask"]))]
             # ground truth
-            labels_for_vis_data.append(self.nn_labels[each_label])
-            q_measure.append(0.0)
-            for each_cam in img_cams:
+            ground_truth.append(each_label)
+            prediction.append(each_pred_label)
+            cam_q_data = list()
+            for cam_id, each_cam in img_cams:
                 # threshold on activation map
                 each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
                 # intersection area
                 q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
-                # predicted label
-                labels_for_vis_data.append(self.nn_labels[each_pred_label])
-                q_measure.append(q_measure_bin)
+                cam_q_data.append((cam_id, q_measure_bin))
 
-        return labels_for_vis_data, q_measure
+            q_measure.append(cam_q_data)
+
+        return ground_truth, prediction, q_measure
 
 
 def project_object_mask(img_binary_masks, image, color=1):
