@@ -34,6 +34,8 @@ def extract_features_and_pred_label_from_nn(model, data):
     """predict the label for an image."""
     last_conv_layer = "layer4"
     avg_layer = "avgpool"
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model.to(device)
     model.eval()
     features_blobs = []
 
@@ -42,7 +44,7 @@ def extract_features_and_pred_label_from_nn(model, data):
 
     model._modules.get(last_conv_layer).register_forward_hook(conv_layer_hook)
     model._modules.get(avg_layer).register_forward_hook(conv_layer_hook)
-    result = model(data)
+    result = model(data.to(device))
     result = functional.softmax(result, dim=1).data.squeeze()
     result = torch.topk(result, k=1, dim=1)
     return result, features_blobs
