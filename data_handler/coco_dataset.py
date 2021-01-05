@@ -13,7 +13,7 @@ class CocoLoadDataset():
         self.data_type = data_type
 
     @ex.capture
-    def load_dataset(self, samples_per_class, class_ids, _log):
+    def load_dataset(self, data_type, samples_per_class, class_ids, _log):
         dataset = []
         limit_ctrl = defaultdict(int)
         imgIds = self.coco.imgs
@@ -27,8 +27,8 @@ class CocoLoadDataset():
                     continue
                 cat, category_index = self.get_image_label(anns)
 
-                if (cat in class_ids) and (limit_ctrl[cat] < samples_per_class) and \
-                        (anns[category_index[0]]['image_id'] not in excluded_imgs[cat]):
+                if (cat in class_ids) and (limit_ctrl[cat] < samples_per_class):  # and \
+                       # (anns[category_index[0]]['image_id'] not in excluded_imgs[cat]):
                     dataset_struct['image_id'] = anns[category_index[0]]['image_id']
                     dataset_struct['category_id'] = anns[category_index[0]]['category_id']
                     dataset_struct['file_name'] = i_img_meta['file_name']
@@ -55,7 +55,7 @@ class CocoLoadDataset():
                 # print("\n No ann for img ", i_img)
 
         #_log.info("Training Samples Balance ratio: %s", limit_ctrl)
-        print("Training Samples Balance ratio: ", limit_ctrl)
+        print(f"Total {data_type} Samples Balance ratio: {limit_ctrl}")
         return dataset
 
     def get_image_label(self, anns):

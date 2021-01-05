@@ -69,7 +69,7 @@ def coco_data_transform(input_size, data_type, gray=False):
 def load_mscoco_metadata(data_type):
     """load mscoco dataset metadata """
     coco_dataset = CocoLoadDataset(data_type=data_type)
-    t_data = coco_dataset.load_dataset(samples_per_class=650)
+    t_data = coco_dataset.load_dataset(data_type=data_type, samples_per_class=1000)
     return t_data
 
 
