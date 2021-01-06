@@ -23,6 +23,6 @@
   "activation_save_path": "/netscratch/kumar/cam/results",
   "num_of_cams": 5,
   "num_of_sample_per_class": 30,
-  "threshold_cam": 0.90
+  "threshold_cam": 90
 
 }
