@@ -5,7 +5,7 @@ import pandas as pd
 
 
 def base_vis_template(images, titles, poly_intersection, figsize, ncols, nrows, save_path):
-    """ Visualization of images """
+    """ Visualization of docs """
     plt.rcParams.update({'figure.max_open_warning': 0})
     fig, axes = plt.subplots(figsize=figsize, ncols=ncols, nrows=nrows, squeeze=False, constrained_layout=True)
     imgs = iter(images)
@@ -87,7 +87,7 @@ class EvaluationNN():
         # assigning to matrix
         for key, median_value in q_map.items():
             matrix[key[0], key[1]] = median_value
-
+        matrix[bin_matrix == 0] = -1
         df = pd.DataFrame(matrix)
         #df.columns =
         df.to_csv(f"eval_matrix.csv")

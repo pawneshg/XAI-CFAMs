@@ -74,7 +74,7 @@ def extract_activation_maps(model, features, pred_label, num_of_cams):
 
 
 def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
-    """ Fetch samples for each class and arrange images in an order with the class_id
+    """ Fetch samples for each class and arrange docs in an order with the class_id
     """
     images = defaultdict(list)
     labels = defaultdict(list)
@@ -97,7 +97,7 @@ def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
                 img_id[label].append(id)
             if (len(visited_classes) == number_of_classes) and (len(set(visited_classes.values())) == 1):
                 break
-    # combine all class images
+    # combine all class docs
     imgs, labels_, img_names = [], [], []
     for key in labels.keys():
         imgs.extend(images[key])
