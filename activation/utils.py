@@ -76,9 +76,8 @@ def extract_activation_maps(model, features, pred_label, num_of_cams):
 def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
     """ Fetch samples for each class and arrange docs in an order with the class_id
     """
-    images = defaultdict(list)
-    labels = defaultdict(list)
-    img_id = defaultdict(list)
+    images, labels, img_id = defaultdict(list), defaultdict(list), defaultdict(list)
+    images_2, labels_2, img_id_2 = defaultdict(list), defaultdict(list), defaultdict(list)
 
     test_data_iter = get_test_coco_dataset_iter(cf.class_ids, cf.val_data_dir, cf.batch_size, cf.num_workers)
     data_ob = load_mscoco_metadata(data_type="val")
@@ -95,8 +94,13 @@ def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
                 visited_classes[label] += 1
                 labels[label].append(label)
                 img_id[label].append(id)
-            if (len(visited_classes) == number_of_classes) and (len(set(visited_classes.values())) == 1):
-                break
+            else:
+                images_2[label].append(data)
+                labels_2[label].append(label)
+                img_id_2[label].append(id)
+
+            # if (len(visited_classes) == number_of_classes) and (len(set(visited_classes.values())) == 1):
+            #     break
     # combine all class docs
     imgs, labels_, img_names = [], [], []
     for key in labels.keys():
@@ -104,15 +108,20 @@ def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
         labels_.extend(labels[key])
         img_names.extend(img_id[key])
 
-    return torch.stack(imgs), torch.Tensor(labels_), img_names
+    imgs_2, labels_2_, img_names_2 = [], [], []
+    for key in labels_2.keys():
+        imgs_2.extend(images_2[key])
+        labels_2_.extend(labels_2[key])
+        img_names_2.extend(img_id_2[key])
+
+    return (torch.stack(imgs), torch.Tensor(labels_), img_names), (torch.stack(imgs_2), torch.Tensor(labels_2_), img_names_2)
 
 
 class ResultsData:
 
     def __init__(self, model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
         # test data # todo remove filters from test data set
-        self.t_images, self.t_labels, self.img_names = data_to_visualize_func(
-            num_of_sample_per_class=cf.num_of_sample_per_class, number_of_classes=len(cf.class_ids))
+        self.t_images, self.t_labels, self.img_names = data_to_visualize_func
         # extract features and predicted label from the neural network
         self.t_topk, self.features = extract_features_and_pred_label_from_nn(model, self.t_images)
         self.probs, self.pred_label = self.t_topk
@@ -143,7 +152,7 @@ class ResultsData:
 
             data_to_visualize.append(obj_over_img)
             labels_for_vis_data.append(self.nn_labels[each_label])
-            polygon_intersection.append(0)
+            polygon_intersection.append(img_name)
             for _, each_cam in img_cams:
                 # activation map
                 each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)

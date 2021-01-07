@@ -27,7 +27,7 @@ class CocoCam(COCO):
 
     def get_imgs(self, catIds, per_cat_data=None):
         """
-        Get the images based on categories lists. catIds is considered as OR list.
+        Get the docs based on categories lists. catIds is considered as OR list.
         An image can have multiple categories.
         """
         if per_cat_data is None:
@@ -49,7 +49,7 @@ class CocoCam(COCO):
 
     def get_occ_categories(self):
         """
-        Fetches the list of categories which has only unary classified images.
+        Fetches the list of categories which has only unary classified docs.
         """
         occ_cat = []
         cat_images = defaultdict(list)

@@ -27,9 +27,9 @@ def base_vis_template(images, titles, poly_intersection, figsize, ncols, nrows, 
 
 
 class EvaluationNN():
-    def __init__(self, model):
+    def __init__(self, model, test_data):
 
-        self.result_data = ResultsData(model=model, data_to_visualize_func=get_coco_samples_per_class, num_of_cams=cf.num_of_cams,
+        self.result_data = ResultsData(model=model, data_to_visualize_func=test_data, num_of_cams=cf.num_of_cams,
                                        class_ids=cf.class_ids, val_data_dir=cf.val_data_dir)
         self.data_to_visualize, self.labels_for_vis_data, self.poly_intersection = None, None, None
 
@@ -62,9 +62,6 @@ class EvaluationNN():
     def eval_metric(self):
         ground_truths, prediction, q_measure = \
             self.result_data.construct_eval_matrix_data()
-        # ground_truths = self.labels_for_vis_data[::cf.num_of_cams+1]
-        # pred_labels = self.labels_for_vis_data[1::cf.num_of_cams+1]
-        # q_measures = [self.q_measure[ind:ind+cf.num_of_cams] for ind in range(len(self.q_measure))[1::cf.num_of_cams+1]]
 
         matrix = np.zeros((512, 120))
         bin_matrix = np.zeros((512, 120))
@@ -79,9 +76,9 @@ class EvaluationNN():
 
         # compute median
         for key, val in q_map.items():
-            # if len(val) < 5:
-            #     q_map[key] = 0
-            #     continue
+            if len(val) < 5:
+                q_map[key] = 0
+                continue
             q_map[key] = np.median(val)
 
         # assigning to matrix
@@ -89,6 +86,45 @@ class EvaluationNN():
             matrix[key[0], key[1]] = median_value
         matrix[bin_matrix == 0] = -1
         df = pd.DataFrame(matrix)
-        #df.columns =
         df.to_csv(f"eval_matrix.csv")
         return matrix
+
+
+class PredictCNNFgBgPercentage():
+
+    def __init__(self, model, eval_matrix, test_data):
+        self.model = model
+        self.eval_matrix = eval_matrix
+        self.test_data = test_data
+        self.t_images, self.t_labels, self.img_names = self.test_data
+        # extract features and predicted label from the neural network
+        self.t_topk, self.features = extract_features_and_pred_label_from_nn(self.model, self.t_images)
+        self.probs, self.pred_label = self.t_topk
+        self.probs, self.pred_label = self.probs.detach().numpy(), np.squeeze(self.pred_label.detach().numpy())
+        # fetched activation maps for the predicated labels.
+        self.cams = extract_activation_maps(self.model, self.features, self.pred_label, cf.num_of_cams)
+
+    def predict(self):
+        """
+        returns the output in json format.
+        """
+        data_output_lst = list()
+        for each_label, img_name, img_cams, each_pred_label in \
+                zip(self.t_labels.numpy(), self.img_names, self.cams, self.pred_label):
+            each_op = dict()
+            if each_label != each_pred_label:
+                continue
+            fg_omega, bg_omega, cam_ids = 0, 0, []
+            for cam_id, each_cam in img_cams:
+                if self.eval_matrix[cam_id, each_pred_label] != -1.0:
+                    fg_omega += self.eval_matrix[cam_id, each_pred_label]
+                    bg_omega += 1 - self.eval_matrix[cam_id, each_pred_label]
+                cam_ids.append(str(cam_id))
+            each_op["image_name"] = str(img_name)
+            each_op["ground_truth"] = str(each_label)
+            each_op["predicted_label"] = str(each_pred_label)
+            each_op["fg"] = str(fg_omega)
+            each_op["bg"] = str(bg_omega)
+            each_op["cam_ids"] = cam_ids
+            data_output_lst.append(each_op)
+        return data_output_lst
