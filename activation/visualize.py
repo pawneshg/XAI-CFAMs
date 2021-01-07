@@ -114,17 +114,18 @@ class PredictCNNFgBgPercentage():
             each_op = dict()
             if each_label != each_pred_label:
                 continue
-            fg_omega, bg_omega, cam_ids = 0, 0, []
+            fg_omega, bg_omega, num_cams, cam_ids = 0, 0, 0, []
             for cam_id, each_cam in img_cams:
                 if self.eval_matrix[cam_id, each_pred_label] != -1.0:
                     fg_omega += self.eval_matrix[cam_id, each_pred_label]
                     bg_omega += 1 - self.eval_matrix[cam_id, each_pred_label]
+                    num_cams += 1
                 cam_ids.append(str(cam_id))
             each_op["image_name"] = str(img_name)
             each_op["ground_truth"] = str(each_label)
             each_op["predicted_label"] = str(each_pred_label)
-            each_op["fg"] = str(fg_omega)
-            each_op["bg"] = str(bg_omega)
+            each_op["fg"] = str(fg_omega/num_cams)
+            each_op["bg"] = str(bg_omega/num_cams)
             each_op["cam_ids"] = cam_ids
             data_output_lst.append(each_op)
         return data_output_lst
