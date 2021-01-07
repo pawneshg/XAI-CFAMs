@@ -124,8 +124,8 @@ class PredictCNNFgBgPercentage():
             each_op["image_name"] = str(img_name)
             each_op["ground_truth"] = str(each_label)
             each_op["predicted_label"] = str(each_pred_label)
-            each_op["fg"] = str(fg_omega/num_cams)
-            each_op["bg"] = str(bg_omega/num_cams)
+            each_op["fg"] = str(fg_omega/num_cams) if num_cams > 0 else str(fg_omega)
+            each_op["bg"] = str(bg_omega/num_cams) if num_cams > 0 else str(bg_omega)
             each_op["cam_ids"] = cam_ids
             data_output_lst.append(each_op)
         return data_output_lst
