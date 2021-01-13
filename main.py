@@ -27,9 +27,9 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
 
 
     # Predict the foreground and background percentage on test data 2.
-    eval_nn = EvaluationNN(model, test_data_2)
-    eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path=activation_save_path,
-                                              num_of_cams=num_of_cams, num_of_sample_per_class=num_of_sample_per_class)
+    # eval_nn = EvaluationNN(model, test_data_2)
+    # eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path=activation_save_path,
+    #                                           num_of_cams=num_of_cams, num_of_sample_per_class=num_of_sample_per_class)
     predictFgBg = PredictCNNFgBgPercentage(model, matrix, test_data_2)
     output = predictFgBg.predict()
     with open(f'{activation_save_path}/fg_bg_results.json', 'w') as fout:
