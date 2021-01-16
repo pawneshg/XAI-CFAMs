@@ -1,6 +1,6 @@
 import torch
 from sacred_config import ex
-from model.coco_dataset import get_coco_train_test_iter, get_test_coco_dataset_iter
+from model.coco_dataset import get_coco_train_val_iter, get_test_coco_dataset_iter
 from model.train import train_network
 
 
@@ -42,7 +42,7 @@ def resnet18(pretrain, class_ids, finetune, weights_load_path, end_epoch, start_
         #optimizer = torch.optim.SGD(model.parameters(), lr=1e-3, weight_decay=5e-4, momentum=0.9, nesterov=True)
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=5e-4)
         scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=4, gamma=0.1)
-        train_data_iter, val_data_iter = get_coco_train_test_iter()
+        train_data_iter, val_data_iter = get_coco_train_val_iter()
         _ = train_network(network=model, loss=loss, optimizer=optimizer, train_iter=train_data_iter, val_iter=val_data_iter,
                           num_epochs=end_epoch, device=device, start_epoch=start_epoch, checkpoints=checkpoints,
                           out_dir=save_weights_loc, scheduler=scheduler)

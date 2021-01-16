@@ -5,18 +5,37 @@ from PIL import Image
 from torch.nn import functional
 import numpy as np
 from model.coco_dataset import get_test_coco_dataset_iter
-from sacred_config import ex
+
 from data_handler.coco_api import CocoCam
 from pycocotools import mask
 from collections import defaultdict
-from model.coco_dataset import load_mscoco_metadata, coco_data_transform
+import activation.config as cf
+from model.coco_dataset import load_mscoco_metadata
+from torchvision import transforms
+# import warnings
+# warnings.filterwarnings("error")
+
+img_transform = transforms.Compose([
+        transforms.Resize(256),
+        transforms.CenterCrop(224),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
+
+gray_transform = transforms.Compose([
+            transforms.Resize(256),
+            transforms.CenterCrop(224),
+            transforms.ToTensor(),
+        ])
 
 
-@ex.capture
 def extract_features_and_pred_label_from_nn(model, data):
     """predict the label for an image."""
     last_conv_layer = "layer4"
     avg_layer = "avgpool"
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    model.to(device)
     model.eval()
     features_blobs = []
 
@@ -25,48 +44,45 @@ def extract_features_and_pred_label_from_nn(model, data):
 
     model._modules.get(last_conv_layer).register_forward_hook(conv_layer_hook)
     model._modules.get(avg_layer).register_forward_hook(conv_layer_hook)
-    result = model(data)
+    result = model(data.to(device))
     result = functional.softmax(result, dim=1).data.squeeze()
     result = torch.topk(result, k=1, dim=1)
     return result, features_blobs
 
 
-@ex.capture
-def extract_activation_maps(model, features, pred_label, num_of_cams, _log):
+def extract_activation_maps(model, features, pred_label, num_of_cams):
     """ class activation map."""
     last_layer_weights = list(model.parameters())[-2]
     size_upsample = (224, 224) # verify input img size
     avg_pool_features = features[1]
-    # todo: Remove for loops.
+
     cams = []
     for id, each_sample_class_idx in enumerate(np.squeeze(pred_label)):
         top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * torch.Tensor(np.squeeze(avg_pool_features[id])),
                                             k=num_of_cams).indices.numpy()
         each_img_cams = list()
-        for each_map_id in top_activation_map_ids:
-            cam = features[0][id][each_map_id]
-            _log.debug("cam min value:", np.min(cam))
-            _log.debug("cam max value:", np.max(cam))
+        for cam_id in top_activation_map_ids:
+            cam = features[0][id][cam_id]
+            # _log.debug("cam min value:", np.min(cam))
+            # _log.debug("cam max value:", np.max(cam))
             cam = np.maximum(cam, 0)
             cam -= np.min(cam)
             cam /= np.max(cam)
-            each_img_cams.append(cam)
+            each_img_cams.append((cam_id, cam))
         cams.append(each_img_cams)
     return cams
 
 
-@ex.capture
-def get_coco_samples_per_class(_log, number_of_classes, num_of_sample_per_class):
-    """ Fetch samples for each class and arrange images in an order with the class_id
+def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
+    """ Fetch samples for each class and arrange docs in an order with the class_id
     """
-    images = defaultdict(list)
-    labels = defaultdict(list)
-    img_id = defaultdict(list)
-    _log.info("Getting Test coco dataset.")
-    test_data_iter = get_test_coco_dataset_iter()
+    images, labels, img_id = defaultdict(list), defaultdict(list), defaultdict(list)
+    images_2, labels_2, img_id_2 = defaultdict(list), defaultdict(list), defaultdict(list)
+
+    test_data_iter = get_test_coco_dataset_iter(cf.class_ids, cf.val_data_dir, cf.batch_size, cf.num_workers)
     data_ob = load_mscoco_metadata(data_type="val")
     visited_classes = defaultdict(int)
-    _log.info("Extracting one data per class.")
+
     for data_batch, label_batch, data_id in test_data_iter:
         for data, label, id in zip(data_batch, label_batch, data_id):
             segmentation = [each_data["segmentation"] for each_data in data_ob if each_data["file_name"] == id]
@@ -78,73 +94,110 @@ def get_coco_samples_per_class(_log, number_of_classes, num_of_sample_per_class)
                 visited_classes[label] += 1
                 labels[label].append(label)
                 img_id[label].append(id)
-            if (len(visited_classes) == number_of_classes) and (len(set(visited_classes.values())) == 1):
-                break
-    # combine all class images
+            else:
+                images_2[label].append(data)
+                labels_2[label].append(label)
+                img_id_2[label].append(id)
+
+            # if (len(visited_classes) == number_of_classes) and (len(set(visited_classes.values())) == 1):
+            #     break
+    # combine all class docs
     imgs, labels_, img_names = [], [], []
     for key in labels.keys():
         imgs.extend(images[key])
         labels_.extend(labels[key])
         img_names.extend(img_id[key])
-    _log.debug("visited_classes Map:", visited_classes)
-    return torch.stack(imgs), torch.Tensor(labels_), img_names
+
+    imgs_2, labels_2_, img_names_2 = [], [], []
+    for key in labels_2.keys():
+        imgs_2.extend(images_2[key])
+        labels_2_.extend(labels_2[key])
+        img_names_2.extend(img_id_2[key])
+
+    return (torch.stack(imgs), torch.Tensor(labels_), img_names), (torch.stack(imgs_2), torch.Tensor(labels_2_), img_names_2)
 
 
-@ex.capture
-def construct_visualization_data(_log, model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
-    """ Pre-Process Visualization data. input_image, cam1, cam2 ."""
-    data_to_visualize = []
-    labels_for_vis_data = []
-    polygon_intersection = []
-    _log.info("Fetching visualization data.")
-    t_images, t_labels, img_names = data_to_visualize_func()
-    _log.info("Extracting model features and labels.")
-    t_topk, features = extract_features_and_pred_label_from_nn(model, t_images)
-    probs, pred_label = t_topk
-    probs, pred_label = probs.detach().numpy(), np.squeeze(pred_label.detach().numpy())
-    _log.info("Constructing activation maps.")
-    cams = extract_activation_maps(model, features, pred_label, num_of_cams)
-    _log.info("Fetching class names.")
-    nn_labels = extract_class_names(class_ids)
-    data_ob = load_mscoco_metadata(data_type="val")
+class ResultsData:
 
-    for each_img, each_label, img_name, img_cams, each_pred_label in \
-            zip(t_images.numpy(), t_labels.numpy(), img_names, cams, pred_label):
-        # input image
-        img_binary_masks = []
-        for i_data in data_ob:
-            if i_data["file_name"] == img_name:
-                segmentation = i_data["segmentation"]
-                img_area = i_data["area"]
-                img_binary_masks = [mask.decode(i_data["mask"][mask_ind]) for mask_ind in range(len(i_data["mask"]))]
+    def __init__(self, model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
+        # test data # todo remove filters from test data set
+        self.t_images, self.t_labels, self.img_names = data_to_visualize_func
+        # extract features and predicted label from the neural network
+        self.t_topk, self.features = extract_features_and_pred_label_from_nn(model, self.t_images)
+        self.probs, self.pred_label = self.t_topk
+        self.probs, self.pred_label = self.probs.detach().numpy(), np.squeeze(self.pred_label.detach().numpy())
+        # fetched activation maps for the predicated labels.
+        self.cams = extract_activation_maps(model, self.features, self.pred_label, num_of_cams)
+        self.nn_labels = extract_class_names(class_ids, cf.val_ann_file)
+        # load test data
+        self.data_ob = load_mscoco_metadata(data_type="val")
+        self.val_data_dir = val_data_dir
 
-        each_img = Image.open(os.path.join(val_data_dir, img_name))
+    def construct_visualization_data(self):
+        """ Pre-Process Visualization data. input_image, cam1, cam2 ."""
+        data_to_visualize, labels_for_vis_data, polygon_intersection = [], [], []
+        for each_img, each_label, img_name, img_cams, each_pred_label in \
+                zip(self.t_images.numpy(), self.t_labels.numpy(), self.img_names, self.cams, self.pred_label):
+            # input image
+            img_binary_masks = []
+            for i_data in self.data_ob:
+                if i_data["file_name"] == img_name:
+                    img_binary_masks = [mask.decode(i_data["mask"][mask_ind]) for mask_ind in
+                                        range(len(i_data["mask"]))]
+                    break
 
-        obj_over_img = project_object_mask(img_binary_masks, each_img, color=1)
+            each_img = Image.open(os.path.join(self.val_data_dir, img_name))
 
-        data_to_visualize.append(obj_over_img)
-        labels_for_vis_data.append(nn_labels[each_label])
-        polygon_intersection.append(0)
-        for each_cam in img_cams:
-            # activation map
-            each_cam = apply_mask_threshold(obj_over_img, each_cam)
-            q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
-            cam_with_img = activation_map_over_img(obj_over_img, each_cam, alpha=0.5)
+            obj_over_img = project_object_mask(img_binary_masks, each_img, color=1)
 
-            # polygon of activation map
+            data_to_visualize.append(obj_over_img)
+            labels_for_vis_data.append(self.nn_labels[each_label])
+            polygon_intersection.append(img_name)
+            for _, each_cam in img_cams:
+                # activation map
+                each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
+                q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
+                cam_with_img = activation_map_over_img(obj_over_img, each_cam, alpha=0.5)
 
-            cam_with_polygon, heatmap_polygons = draw_heatmap_polygon(cam_with_img, each_cam)
-            cam_with_polygon = cam_with_polygon.astype(int)
+                # polygon of activation map
 
-            # draw common area
-            common_over_img = project_object_mask(common_mask, cam_with_polygon, color=2)
+                cam_with_polygon, heatmap_polygons = draw_heatmap_polygon(cam_with_img, each_cam)
+                cam_with_polygon = cam_with_polygon.astype(int)
 
+                # draw common area
+                common_over_img = project_object_mask(common_mask, cam_with_polygon, color=2)
 
-            data_to_visualize.append(common_over_img)
-            labels_for_vis_data.append(nn_labels[each_pred_label])
-            polygon_intersection.append(q_measure_bin)
+                data_to_visualize.append(common_over_img)
+                labels_for_vis_data.append(self.nn_labels[each_pred_label])
+                polygon_intersection.append(q_measure_bin)
 
-    return data_to_visualize, labels_for_vis_data, polygon_intersection
+        return data_to_visualize, labels_for_vis_data, polygon_intersection
+
+    def construct_eval_matrix_data(self):
+        ground_truth, prediction, q_measure = [], [], []
+        for each_label, img_name, img_cams, each_pred_label in \
+                zip(self.t_labels.numpy(), self.img_names, self.cams, self.pred_label):
+
+            # input image
+            img_binary_masks = []
+            for i_data in self.data_ob:
+                if i_data["file_name"] == img_name:
+                    img_binary_masks = [mask.decode(i_data["mask"][mask_ind]) for mask_ind in
+                                        range(len(i_data["mask"]))]
+            # ground truth
+            ground_truth.append(each_label)
+            prediction.append(each_pred_label)
+            cam_q_data = list()
+            for cam_id, each_cam in img_cams:
+                # threshold on activation map
+                each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
+                # intersection area
+                q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
+                cam_q_data.append((cam_id, q_measure_bin))
+
+            q_measure.append(cam_q_data)
+
+        return ground_truth, prediction, q_measure
 
 
 def project_object_mask(img_binary_masks, image, color=1):
@@ -161,35 +214,34 @@ def project_object_mask(img_binary_masks, image, color=1):
         img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
     obj_over_img = (img2 * alpha) + image * (1 - alpha)
 
-    transform = coco_data_transform(input_size=224, data_type="val")
     # todo: cropping is not perfect.
     image = Image.fromarray(np.uint8(obj_over_img))
-    img = transform(image).data.numpy().transpose((1, 2, 0))
+    img = img_transform(image).data.numpy().transpose((1, 2, 0))
     image = normalize_image(img)
     return image
 
 
 def compute_intersection_area_using_binary_mask(cam_mask, img_binary_masks):
-    # todo : intelligent numpy center crop  transformation
     # img_binary_mask = cv2.resize(img_binary_mask, (224, 224, 3))
-    transform = coco_data_transform(input_size=224, data_type="val", gray=True)
-    img_binary_mask_0 = np.squeeze(transform(Image.fromarray(img_binary_masks[0])).data.numpy().transpose((1, 2, 0)))
+    img_binary_mask_0 = np.squeeze(gray_transform(Image.fromarray(img_binary_masks[0])).data.numpy().transpose((1, 2, 0)))
     img_binary_mask_union = np.where(img_binary_mask_0 > 0, 1, 0)
     for img_binary_mask in img_binary_masks[1:]:
-        img_binary_mask = np.squeeze(transform(Image.fromarray(img_binary_mask)).data.numpy().transpose((1, 2, 0)))
+        img_binary_mask = np.squeeze(gray_transform(Image.fromarray(img_binary_mask)).data.numpy().transpose((1, 2, 0)))
         img_binary_mask = np.where(img_binary_mask > 0, 1, 0)
         img_binary_mask_union = np.bitwise_or(img_binary_mask_union, img_binary_mask)
 
     cam_mask = np.where(cam_mask > 0, 1, 0)
-    try:
-        common_mask = np.bitwise_and(img_binary_mask_union, cam_mask)
-        common_mask = mask.encode(np.asfortranarray(common_mask).astype('uint8'))
-        common_area = mask.area(common_mask)
-        # todo : runtime warning
-        q_measure = common_area/mask.area(mask.encode(np.asfortranarray(img_binary_mask_union).astype('uint8')))
-    except RuntimeWarning:
-        #todo
-        import pdb; pdb.set_trace()
+
+    common_mask = np.bitwise_and(img_binary_mask_union, cam_mask)
+    common_mask = mask.encode(np.asfortranarray(common_mask).astype('uint8'))
+    common_area = mask.area(common_mask)
+
+    fortran_arr = np.asfortranarray(img_binary_mask_union).astype('uint8')
+    if np.max(fortran_arr) == 0:
+        q_measure = 0.0
+    else:
+        q_measure = common_area/mask.area(mask.encode(fortran_arr))
+
     return q_measure, mask.decode(common_mask)
 
 
@@ -202,10 +254,8 @@ def normalize_image(image):
     return image
 
 
-@ex.capture
-def apply_mask_threshold(image, cam, threshold_cam):
+def apply_mask_threshold(cam, threshold_cam):
     cam_img = cv2.resize(cam, (224, 224))
-    # Todo: percentile
     cam = np.where(cam_img < np.percentile(cam_img, threshold_cam), 0, cam_img)
     return np.uint8(cam*255)
 
@@ -232,7 +282,6 @@ def draw_heatmap_polygon(image, cam):
     return cv2.cvtColor(image, cv2.COLOR_BGR2RGB), heatmap_polygons
 
 
-@ex.capture
 def extract_class_names(class_ids, val_ann_file):
     """Maps nerual networks class ids with dataset class id and return maps of class_id and class name."""
     class_ids_map_with_nn = {key: ind for ind, key in enumerate(class_ids)}
