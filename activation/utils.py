@@ -120,7 +120,7 @@ def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
 class ResultsData:
 
     def __init__(self, model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
-        # test data # todo remove filters from test data set
+        # test data
         self.t_images, self.t_labels, self.img_names = data_to_visualize_func
         # extract features and predicted label from the neural network
         self.t_topk, self.features = extract_features_and_pred_label_from_nn(model, self.t_images)
@@ -146,7 +146,7 @@ class ResultsData:
                                         range(len(i_data["mask"]))]
                     break
 
-            each_img = Image.open(os.path.join(self.val_data_dir, img_name))
+            each_img = Image.open(os.path.join(self.val_data_dir, img_name)).convert('RGB')
 
             obj_over_img = project_object_mask(img_binary_masks, each_img, color=1)
 
@@ -206,9 +206,11 @@ def project_object_mask(img_binary_masks, image, color=1):
     image = np.asarray(image)
     img2 = image.copy()
     if isinstance(img_binary_masks, list):
+
         for img_binary_mask in img_binary_masks:
             bin_mask_ind = np.where(img_binary_mask > 0)
             img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
+
     else:
         bin_mask_ind = np.where(img_binary_masks > 0)
         img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
