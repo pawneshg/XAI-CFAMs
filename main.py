@@ -28,7 +28,7 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
 
     # Predict the foreground and background percentage on test data 2.
     predictFgBg = PredictCNNFgBgPercentage(model, matrix, test_data_2)
-    output = predictFgBg.predict()
+    output = predictFgBg.weightage_predict()
     with open(f'{activation_save_path}/fg_bg_results.json', 'w') as fout:
         json.dump(output, fout)
     print(output)

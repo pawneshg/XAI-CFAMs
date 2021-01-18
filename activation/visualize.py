@@ -117,7 +117,7 @@ class PredictCNNFgBgPercentage():
         # fetched activation maps for the predicated labels.
         self.cams = extract_activation_maps(self.model, self.features, self.pred_label, cf.num_of_cams)
 
-    def predict(self):
+    def naive_predict(self):
         """
         returns the output in json format.
         """
@@ -128,7 +128,7 @@ class PredictCNNFgBgPercentage():
             if each_label != each_pred_label:
                 continue
             fg_omega, bg_omega, num_cams, cam_ids = 0, 0, 0, []
-            for cam_id, each_cam in img_cams:
+            for cam_id, each_cam, _ in img_cams:
                 if self.eval_matrix[cam_id, each_pred_label] != -1.0:
                     fg_omega += self.eval_matrix[cam_id, each_pred_label]
                     bg_omega += 1 - self.eval_matrix[cam_id, each_pred_label]
@@ -142,3 +142,35 @@ class PredictCNNFgBgPercentage():
             each_op["cam_ids"] = cam_ids
             data_output_lst.append(each_op)
         return data_output_lst
+
+    def weightage_predict(self):
+        """
+        return prediction of fg and bg , by considering weightage of cams.
+        """
+        data_output_lst = list()
+        for each_label, img_name, img_cams, each_pred_label in \
+                zip(self.t_labels.numpy(), self.img_names, self.cams, self.pred_label):
+            each_op = dict()
+            if each_label != each_pred_label:
+                continue
+            fg_omega, bg_omega, num_cams, cam_ids, cam_weighs = 0, 0, 0, [], []
+            sum_cam_weigh = 0
+            for cam_id, _, cam_weigh in img_cams:
+                if self.eval_matrix[cam_id, each_pred_label] != -1.0:
+                    fg_omega += cam_weigh*self.eval_matrix[cam_id, each_pred_label]
+                    sum_cam_weigh += cam_weigh
+                    num_cams += 1
+                    cam_weighs.append(str(cam_weigh))
+                    cam_ids.append(str(cam_id))
+            fg_omega = fg_omega/sum_cam_weigh
+            bg_omega = 1 - fg_omega
+            each_op["image_name"] = str(img_name)
+            each_op["ground_truth"] = str(each_label)
+            each_op["predicted_label"] = str(each_pred_label)
+            each_op["fg"] = str(fg_omega)
+            each_op["bg"] = str(bg_omega)
+            each_op["cam_ids"] = cam_ids
+            each_op["cam_weights"] = cam_weighs
+            data_output_lst.append(each_op)
+        return data_output_lst
+

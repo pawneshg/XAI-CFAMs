@@ -58,17 +58,18 @@ def extract_activation_maps(model, features, pred_label, num_of_cams):
 
     cams = []
     for id, each_sample_class_idx in enumerate(np.squeeze(pred_label)):
-        top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * torch.Tensor(np.squeeze(avg_pool_features[id])),
-                                            k=num_of_cams).indices.numpy()
+        top_activation_maps = torch.topk(last_layer_weights[each_sample_class_idx] * torch.Tensor(np.squeeze(avg_pool_features[id])),
+                                         k=num_of_cams)
+        top_activation_map_ids = top_activation_maps.indices.numpy()
+        top_activation_map_weights = top_activation_maps.values.detach().numpy()
+
         each_img_cams = list()
-        for cam_id in top_activation_map_ids:
+        for cam_id, cam_weigh in zip(top_activation_map_ids, top_activation_map_weights):
             cam = features[0][id][cam_id]
-            # _log.debug("cam min value:", np.min(cam))
-            # _log.debug("cam max value:", np.max(cam))
             cam = np.maximum(cam, 0)
             cam -= np.min(cam)
             cam /= np.max(cam)
-            each_img_cams.append((cam_id, cam))
+            each_img_cams.append((cam_id, cam, cam_weigh))
         cams.append(each_img_cams)
     return cams
 
