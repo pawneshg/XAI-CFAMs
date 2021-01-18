@@ -23,6 +23,7 @@ class VisualizationTemplate:
         imgs = iter(images)
         titles = iter(titles)
         results = iter(poly_intersection)
+        additional_data_map = {each_data["image_name"]: each_data for each_data in additional_data}
         for num_rows_per_page in range(0, self.nrows, 5):
             self.fig, self.axes = plt.subplots(figsize=self.figsize, ncols=self.ncols+1, nrows=5,
                                                squeeze=False, constrained_layout=True)
@@ -37,12 +38,13 @@ class VisualizationTemplate:
                         self.axes[row_ind, col_ind].imshow(img)
                         title_n_results = str(next(titles)) + ' ' + omega
                         self.axes[row_ind, col_ind].set_title(title_n_results)
-                    result_data = [each_data for each_data in additional_data if each_data["image_name"] == img_name]
+                    result_data = additional_data_map.get(img_name, [])
                     result_data = str(result_data).replace(',', '\n')
-                    self.axes[row_ind, self.ncols].text(0.2, 0.4, result_data, style='italic',fontsize=12,
+                    self.axes[row_ind, self.ncols].text(0.2, 0.6, result_data, style='italic',fontsize=12,
                                                         bbox=dict(facecolor='red', alpha=0.5))
             except StopIteration:
                 pass
+            plt.axis('off')
             self.pdf.savefig(self.fig)
             plt.close()
         self.pdf.close()
