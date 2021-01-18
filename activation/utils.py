@@ -154,7 +154,7 @@ class ResultsData:
             data_to_visualize.append(obj_over_img)
             labels_for_vis_data.append(self.nn_labels[each_label])
             polygon_intersection.append(img_name)
-            for _, each_cam in img_cams:
+            for _, each_cam, _ in img_cams:
                 # activation map
                 each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
                 q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
@@ -189,7 +189,7 @@ class ResultsData:
             ground_truth.append(each_label)
             prediction.append(each_pred_label)
             cam_q_data = list()
-            for cam_id, each_cam in img_cams:
+            for cam_id, each_cam, _ in img_cams:
                 # threshold on activation map
                 each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
                 # intersection area
