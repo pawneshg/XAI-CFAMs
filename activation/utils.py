@@ -58,17 +58,18 @@ def extract_activation_maps(model, features, pred_label, num_of_cams):
 
     cams = []
     for id, each_sample_class_idx in enumerate(np.squeeze(pred_label)):
-        top_activation_map_ids = torch.topk(last_layer_weights[each_sample_class_idx] * torch.Tensor(np.squeeze(avg_pool_features[id])),
-                                            k=num_of_cams).indices.numpy()
+        top_activation_maps = torch.topk(last_layer_weights[each_sample_class_idx] * torch.Tensor(np.squeeze(avg_pool_features[id])),
+                                         k=num_of_cams)
+        top_activation_map_ids = top_activation_maps.indices.numpy()
+        top_activation_map_weights = top_activation_maps.values.detach().numpy()
+
         each_img_cams = list()
-        for cam_id in top_activation_map_ids:
+        for cam_id, cam_weigh in zip(top_activation_map_ids, top_activation_map_weights):
             cam = features[0][id][cam_id]
-            # _log.debug("cam min value:", np.min(cam))
-            # _log.debug("cam max value:", np.max(cam))
             cam = np.maximum(cam, 0)
             cam -= np.min(cam)
             cam /= np.max(cam)
-            each_img_cams.append((cam_id, cam))
+            each_img_cams.append((cam_id, cam, cam_weigh))
         cams.append(each_img_cams)
     return cams
 
@@ -120,7 +121,7 @@ def get_coco_samples_per_class(number_of_classes, num_of_sample_per_class):
 class ResultsData:
 
     def __init__(self, model, data_to_visualize_func, num_of_cams, class_ids, val_data_dir):
-        # test data # todo remove filters from test data set
+        # test data
         self.t_images, self.t_labels, self.img_names = data_to_visualize_func
         # extract features and predicted label from the neural network
         self.t_topk, self.features = extract_features_and_pred_label_from_nn(model, self.t_images)
@@ -146,14 +147,14 @@ class ResultsData:
                                         range(len(i_data["mask"]))]
                     break
 
-            each_img = Image.open(os.path.join(self.val_data_dir, img_name))
+            each_img = Image.open(os.path.join(self.val_data_dir, img_name)).convert('RGB')
 
             obj_over_img = project_object_mask(img_binary_masks, each_img, color=1)
 
             data_to_visualize.append(obj_over_img)
             labels_for_vis_data.append(self.nn_labels[each_label])
             polygon_intersection.append(img_name)
-            for _, each_cam in img_cams:
+            for _, each_cam, _ in img_cams:
                 # activation map
                 each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
                 q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
@@ -188,7 +189,7 @@ class ResultsData:
             ground_truth.append(each_label)
             prediction.append(each_pred_label)
             cam_q_data = list()
-            for cam_id, each_cam in img_cams:
+            for cam_id, each_cam, _ in img_cams:
                 # threshold on activation map
                 each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
                 # intersection area
@@ -206,9 +207,11 @@ def project_object_mask(img_binary_masks, image, color=1):
     image = np.asarray(image)
     img2 = image.copy()
     if isinstance(img_binary_masks, list):
+
         for img_binary_mask in img_binary_masks:
             bin_mask_ind = np.where(img_binary_mask > 0)
             img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
+
     else:
         bin_mask_ind = np.where(img_binary_masks > 0)
         img2[bin_mask_ind[0], bin_mask_ind[1], color] = 255
