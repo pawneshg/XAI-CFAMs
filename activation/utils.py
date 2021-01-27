@@ -175,6 +175,7 @@ class ResultsData:
         return data_to_visualize, labels_for_vis_data, polygon_intersection
 
     def construct_eval_matrix_data(self):
+        """Naive omega matrix """
         ground_truth, prediction, q_measure = [], [], []
         for each_label, img_name, img_cams, each_pred_label in \
                 zip(self.t_labels.numpy(), self.img_names, self.cams, self.pred_label):
@@ -189,12 +190,12 @@ class ResultsData:
             ground_truth.append(each_label)
             prediction.append(each_pred_label)
             cam_q_data = list()
-            for cam_id, each_cam, _ in img_cams:
+            for cam_id, each_cam, cam_weigh in img_cams:
                 # threshold on activation map
                 each_cam = apply_mask_threshold(each_cam, cf.threshold_cam)
                 # intersection area
                 q_measure_bin, common_mask = compute_intersection_area_using_binary_mask(each_cam, img_binary_masks)
-                cam_q_data.append((cam_id, q_measure_bin))
+                cam_q_data.append((cam_id, q_measure_bin, cam_weigh))
 
             q_measure.append(cam_q_data)
 
@@ -238,8 +239,7 @@ def compute_intersection_area_using_binary_mask(cam_mask, img_binary_masks):
     common_mask = np.bitwise_and(img_binary_mask_union, cam_mask)
     common_mask = mask.encode(np.asfortranarray(common_mask).astype('uint8'))
     common_area = mask.area(common_mask)
-
-    fortran_arr = np.asfortranarray(img_binary_mask_union).astype('uint8')
+    fortran_arr = np.asfortranarray(cam_mask).astype('uint8')
     if np.max(fortran_arr) == 0:
         q_measure = 0.0
     else:

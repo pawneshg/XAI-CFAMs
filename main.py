@@ -6,7 +6,7 @@ import os
 import json
 import numpy as np
 
-os.environ['KMP_DUPLICATE_LIB_OK']='True'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
 @ex.automain
@@ -22,16 +22,23 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
 
     # Evaluation Matrix Table Generation using test data 1 .
     eval_nn = EvaluationNN(model, test_data_1)
-    matrix = eval_nn.eval_metric()  # todo: read matrix from csv file
-
-    # matrix = np.loadtxt(open("eval_matrix_30.csv", "rb"), delimiter=",", skiprows=1, usecols=range(1, 121)) #todo file name
-
+    eval_matrix, weight_matrix = eval_nn.eval_metric(activation_save_path=activation_save_path)  # todo: read matrix from csv file
+    #
+    # # matrix = np.loadtxt(open("eval_matrix_30.csv", "rb"), delimiter=",", skiprows=1, usecols=range(1, 121)) #todo file name
+    #
     # Predict the foreground and background percentage on test data 2.
-    predictFgBg = PredictCNNFgBgPercentage(model, matrix, test_data_2)
-    output = predictFgBg.weightage_predict()
-    with open(f'{activation_save_path}/fg_bg_results.json', 'w') as fout:
+    predictFgBg = PredictCNNFgBgPercentage(model, eval_matrix, weight_matrix, test_data_2)
+    eval_nn = EvaluationNN(model, test_data_2)
+    output = predictFgBg.naive_predict()
+    with open(f'./results/naive_approach/fg_bg_results.json', 'w') as fout:
         json.dump(output, fout)
     print(output)
-    eval_nn = EvaluationNN(model, test_data_2)
-    eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path=activation_save_path,
+    eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path="./results/naive_approach",
+                                              num_of_cams=num_of_cams, results=output)
+    output = predictFgBg.weightage_predict()
+    with open(f'./results/weighted_approach/fg_bg_results.json', 'w') as fout:
+        json.dump(output, fout)
+    print(output)
+
+    eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path="./results/weighted_approach",
                                               num_of_cams=num_of_cams, results=output)

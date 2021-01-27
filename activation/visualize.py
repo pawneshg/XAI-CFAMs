@@ -40,7 +40,7 @@ class VisualizationTemplate:
                         self.axes[row_ind, col_ind].set_title(title_n_results)
                     result_data = additional_data_map.get(img_name, [])
                     result_data = str(result_data).replace(',', '\n')
-                    self.axes[row_ind, self.ncols].text(0.2, 0.6, result_data, style='italic',fontsize=12,
+                    self.axes[row_ind, self.ncols].text(0.0, 0.0, result_data, style='italic',fontsize=12,
                                                         bbox=dict(facecolor='red', alpha=0.5))
             except StopIteration:
                 pass
@@ -74,24 +74,37 @@ class EvaluationNN():
 
         return is_success
 
-    def eval_metric(self):
+    def eval_metric(self, activation_save_path):
         ground_truths, prediction, q_measure = \
             self.result_data.construct_eval_matrix_data()
 
-        matrix = np.zeros((512, 120))
-        bin_matrix = np.zeros((512, 120))
         q_map = defaultdict(list)
+        q_weights = defaultdict(list)
         # aggregate
         for ind, ground_label, pred_label, measure in zip(range(len(ground_truths)), ground_truths, prediction, q_measure):
             if ground_label != pred_label:
                 continue
-            for cam_id, cam_measure in measure:
+            for cam_id, cam_measure, cam_weigh in measure:
                 q_map[(cam_id, pred_label)].append(cam_measure)
-                bin_matrix[cam_id, pred_label] = 1
+                q_weights[(cam_id, pred_label)].append(cam_weigh)
+        eval_matrix = self._construct_matrix_from_dict(q_map, type="eval")
+        self._create_csv(eval_matrix, f"{activation_save_path}/naive_omega.csv")
 
+        weight_matrix = self._construct_matrix_from_dict(q_weights, type="weight")
+        self._create_csv(weight_matrix, f"{activation_save_path}/weights.csv")
+        return eval_matrix, weight_matrix
+
+    def _create_csv(self, matrix, file_path):
+        df = pd.DataFrame(matrix)
+        df.to_csv(file_path)
+
+    def _construct_matrix_from_dict(self, q_map, type="weight"):
+        matrix = np.zeros((512, 24)) - 1
+        if type == "weight":
+            matrix = np.zeros((512, 24))
         # compute median
         for key, val in q_map.items():
-            if len(val) < 5:
+            if len(val) < 5: #and type != 'weight':
                 q_map[key] = 0
                 continue
             q_map[key] = np.median(val)
@@ -99,17 +112,15 @@ class EvaluationNN():
         # assigning to matrix
         for key, median_value in q_map.items():
             matrix[key[0], key[1]] = median_value
-        matrix[bin_matrix == 0] = -1
-        df = pd.DataFrame(matrix)
-        df.to_csv(f"eval_matrix.csv")
         return matrix
 
 
 class PredictCNNFgBgPercentage():
 
-    def __init__(self, model, eval_matrix, test_data):
+    def __init__(self, model, eval_matrix, weight_matrix, test_data):
         self.model = model
         self.eval_matrix = eval_matrix
+        self.weight_matrix = weight_matrix
         self.test_data = test_data
         self.t_images, self.t_labels, self.img_names = self.test_data
         # extract features and predicted label from the neural network
@@ -157,12 +168,12 @@ class PredictCNNFgBgPercentage():
                 continue
             fg_omega, bg_omega, num_cams, cam_ids, cam_weighs = 0, 0, 0, [], []
             sum_cam_weigh = 0
-            for cam_id, _, cam_weigh in img_cams:
+            for cam_id, _, _w in img_cams:
                 if self.eval_matrix[cam_id, each_pred_label] != -1.0:
-                    fg_omega += cam_weigh*self.eval_matrix[cam_id, each_pred_label]
-                    sum_cam_weigh += cam_weigh
+                    fg_omega += self.weight_matrix[cam_id, each_pred_label]*self.eval_matrix[cam_id, each_pred_label]
+                    sum_cam_weigh += self.weight_matrix[cam_id, each_pred_label]
                     num_cams += 1
-                    cam_weighs.append(str(cam_weigh))
+                    cam_weighs.append(str(self.weight_matrix[cam_id, each_pred_label]))
                     cam_ids.append(str(cam_id))
             fg_omega = fg_omega/sum_cam_weigh
             bg_omega = 1 - fg_omega
