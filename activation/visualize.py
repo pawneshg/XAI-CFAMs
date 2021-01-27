@@ -87,6 +87,7 @@ class EvaluationNN():
             for cam_id, cam_measure, cam_weigh in measure:
                 q_map[(cam_id, pred_label)].append(cam_measure)
                 q_weights[(cam_id, pred_label)].append(cam_weigh)
+
         eval_matrix = self._construct_matrix_from_dict(q_map, type="eval")
         self._create_csv(eval_matrix, f"{activation_save_path}/naive_omega.csv")
 
@@ -101,7 +102,7 @@ class EvaluationNN():
     def _construct_matrix_from_dict(self, q_map, type="weight"):
         matrix = np.zeros((512, 24)) - 1
         if type == "weight":
-            matrix = np.zeros((512, 24))
+            matrix = np.zeros((512, 24)) - 1
         # compute median
         for key, val in q_map.items():
             if len(val) < 5: #and type != 'weight':
