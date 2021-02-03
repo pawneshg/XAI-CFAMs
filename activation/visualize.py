@@ -79,21 +79,21 @@ class EvaluationNN():
             self.result_data.construct_eval_matrix_data()
 
         q_map = defaultdict(list)
-        q_weights = defaultdict(list)
+        #q_weights = defaultdict(list)
         # aggregate
         for ind, ground_label, pred_label, measure in zip(range(len(ground_truths)), ground_truths, prediction, q_measure):
             if ground_label != pred_label:
                 continue
             for cam_id, cam_measure, cam_weigh in measure:
                 q_map[(cam_id, pred_label)].append(cam_measure)
-                q_weights[(cam_id, pred_label)].append(cam_weigh)
+                #q_weights[(cam_id, pred_label)].append(cam_weigh)
 
         eval_matrix = self._construct_matrix_from_dict(q_map, type="eval")
         self._create_csv(eval_matrix, f"{activation_save_path}/naive_omega.csv")
 
-        weight_matrix = self._construct_matrix_from_dict(q_weights, type="weight")
-        self._create_csv(weight_matrix, f"{activation_save_path}/weights.csv")
-        return eval_matrix, weight_matrix
+        # weight_matrix = self._construct_matrix_from_dict(q_weights, type="weight")
+        # self._create_csv(weight_matrix, f"{activation_save_path}/weights.csv")
+        return eval_matrix
 
     def _create_csv(self, matrix, file_path):
         df = pd.DataFrame(matrix)
@@ -176,8 +176,12 @@ class PredictCNNFgBgPercentage():
                     num_cams += 1
                     cam_weighs.append(str(self.weight_matrix[cam_id, each_pred_label]))
                     cam_ids.append(str(cam_id))
-            fg_omega = fg_omega/sum_cam_weigh
-            bg_omega = 1 - fg_omega
+            try: # todo ZeroDivisionError
+                fg_omega = fg_omega/sum_cam_weigh
+                bg_omega = 1 - fg_omega
+            except ZeroDivisionError:
+                fg_omega = -1.0
+                bg_omega = -1.0
             each_op["image_name"] = str(img_name)
             each_op["ground_truth"] = str(each_label)
             each_op["predicted_label"] = str(each_pred_label)
