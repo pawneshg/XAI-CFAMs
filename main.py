@@ -46,15 +46,20 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
     predictFgBg = PredictCNNFgBgPercentage(model, naive_omega, weight_matrix, test_data_2)
     eval_nn = EvaluationNN(model, test_data_2)
     output = predictFgBg.naive_predict()
-    with open(f'./results/naive_approach/fg_bg_results.json', 'w') as fout:
+    if not os.path.isdir(f'{activation_save_path}/naive_approach'):
+        os.makedirs(f'{activation_save_path}/naive_approach')
+    with open(f'{activation_save_path}/naive_approach/fg_bg_results.json', 'w') as fout:
         json.dump(output, fout)
     print(output)
-    eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path="./results/naive_approach",
+    eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path=f"{activation_save_path}/naive_approach",
                                               num_of_cams=num_of_cams, results=output)
     output = predictFgBg.weightage_predict()
-    with open(f'./results/weighted_approach/fg_bg_results.json', 'w') as fout:
+
+    if not os.path.isdir(f'{activation_save_path}/weighted_approach'):
+        os.makedirs(f'{activation_save_path}/weighted_approach')
+    with open(f'{activation_save_path}/weighted_approach/fg_bg_results.json', 'w') as fout:
         json.dump(output, fout)
     print(output)
 
-    eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path="./results/weighted_approach",
+    eval_nn.coco_activation_map_visualization(class_ids=class_ids, activation_save_path=f"{activation_save_path}/weighted_approach",
                                               num_of_cams=num_of_cams, results=output)
