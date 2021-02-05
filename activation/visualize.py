@@ -79,20 +79,16 @@ class EvaluationNN():
             self.result_data.construct_eval_matrix_data()
 
         q_map = defaultdict(list)
-        #q_weights = defaultdict(list)
         # aggregate
         for ind, ground_label, pred_label, measure in zip(range(len(ground_truths)), ground_truths, prediction, q_measure):
             if ground_label != pred_label:
                 continue
             for cam_id, cam_measure, cam_weigh in measure:
                 q_map[(cam_id, pred_label)].append(cam_measure)
-                #q_weights[(cam_id, pred_label)].append(cam_weigh)
 
         eval_matrix = self._construct_matrix_from_dict(q_map, type="eval")
         self._create_csv(eval_matrix, f"{activation_save_path}/naive_omega.csv")
 
-        # weight_matrix = self._construct_matrix_from_dict(q_weights, type="weight")
-        # self._create_csv(weight_matrix, f"{activation_save_path}/weights.csv")
         return eval_matrix
 
     def _create_csv(self, matrix, file_path):
@@ -101,11 +97,9 @@ class EvaluationNN():
 
     def _construct_matrix_from_dict(self, q_map, type="weight"):
         matrix = np.zeros((512, 24)) - 1
-        if type == "weight":
-            matrix = np.zeros((512, 24)) - 1
         # compute median
         for key, val in q_map.items():
-            if len(val) < 5: #and type != 'weight':
+            if len(val) < 5:
                 q_map[key] = 0
                 continue
             q_map[key] = np.median(val)
@@ -167,28 +161,25 @@ class PredictCNNFgBgPercentage():
             each_op = dict()
             if each_label != each_pred_label:
                 continue
-            fg_omega, bg_omega, num_cams, cam_ids, cam_weighs = 0, 0, 0, [], []
+            fg_omega, bg_omega, cam_ids, cam_weighs, naive_omega = 0, 0, [], [], []
             sum_cam_weigh = 0
             for cam_id, _, _w in img_cams:
+                cam_weighs.append(self.weight_matrix[cam_id, each_pred_label])
+                naive_omega.append(str(self.eval_matrix[cam_id, each_pred_label]))
                 if self.eval_matrix[cam_id, each_pred_label] != -1.0:
                     fg_omega += self.weight_matrix[cam_id, each_pred_label]*self.eval_matrix[cam_id, each_pred_label]
-                    sum_cam_weigh += self.weight_matrix[cam_id, each_pred_label]
-                    num_cams += 1
-                    cam_weighs.append(str(self.weight_matrix[cam_id, each_pred_label]))
                     cam_ids.append(str(cam_id))
-            try: # todo ZeroDivisionError
-                fg_omega = fg_omega/sum_cam_weigh
-                bg_omega = 1 - fg_omega
-            except ZeroDivisionError:
-                fg_omega = -1.0
-                bg_omega = -1.0
+                sum_cam_weigh += self.weight_matrix[cam_id, each_pred_label]
+            fg_omega = fg_omega/sum_cam_weigh
+            bg_omega = 1 - fg_omega
             each_op["image_name"] = str(img_name)
             each_op["ground_truth"] = str(each_label)
             each_op["predicted_label"] = str(each_pred_label)
             each_op["fg"] = str(fg_omega)
             each_op["bg"] = str(bg_omega)
             each_op["cam_ids"] = cam_ids
-            each_op["cam_weights"] = cam_weighs
+            each_op["cam_weights"] = [str(weigh) for weigh in cam_weighs]
+            each_op["naive_omega"] = naive_omega
+            each_op["norm_cam_weights"] = [str(weigh / sum_cam_weigh) for weigh in cam_weighs]
             data_output_lst.append(each_op)
         return data_output_lst
-

@@ -5,6 +5,7 @@ from activation.utils import get_coco_samples_per_class
 import os
 import json
 import torch
+import pandas as pd
 import numpy as np
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
@@ -21,11 +22,12 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
     test_data_1, test_data_2 = get_coco_samples_per_class(num_of_sample_per_class=num_of_sample_per_class, number_of_classes=len(class_ids))
     weight_matrix = list(model.parameters())[-2]
     weight_matrix = torch.transpose(weight_matrix, 0, 1).cpu().detach().numpy()
+    df = pd.DataFrame(weight_matrix)
+    df.to_csv(f'{activation_save_path}/weights.csv')
     # Evaluation Matrix Table Generation using test data 1 .
     eval_nn = EvaluationNN(model, test_data_1)
     naive_omega = eval_nn.eval_metric(activation_save_path=activation_save_path)  # todo: read matrix from csv file
     # plot weights vs omega
-    #
     # import matplotlib.pyplot as plt
     # naive_omega_flt = naive_omega.flatten()
     # weight_matrix_flt = weight_matrix.flatten()
