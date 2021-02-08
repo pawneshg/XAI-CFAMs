@@ -39,7 +39,7 @@ class VisualizationTemplate:
                         title_n_results = str(next(titles)) + ' ' + omega
                         self.axes[row_ind, col_ind].set_title(title_n_results)
                     result_data = additional_data_map.get(img_name, [])
-
+                    result_data = str(result_data).replace(',', '\n')
                     self.axes[row_ind, self.ncols].text(0.0, 0.0, result_data, style='italic',fontsize=12,
                                                         bbox=dict(facecolor='red', alpha=0.5))
             except StopIteration:
@@ -143,8 +143,8 @@ class PredictCNNFgBgPercentage():
                     num_cams += 1
                 cam_ids.append(str(cam_id))
             each_op["image_name"] = str(img_name)
-            each_op["ground_truth"] = str(each_label)
-            each_op["predicted_label"] = str(each_pred_label)
+            #each_op["ground_truth"] = str(each_label)
+            #each_op["predicted_label"] = str(each_pred_label)
             each_op["fg"] = str(fg_omega/num_cams) if num_cams > 0 else str(fg_omega)
             each_op["bg"] = str(bg_omega/num_cams) if num_cams > 0 else str(bg_omega)
             each_op["cam_ids"] = cam_ids
@@ -173,13 +173,13 @@ class PredictCNNFgBgPercentage():
             fg_omega = fg_omega/sum_cam_weigh
             bg_omega = 1 - fg_omega
             each_op["image_name"] = str(img_name)
-            each_op["ground_truth"] = str(each_label)
-            each_op["predicted_label"] = str(each_pred_label)
+            # each_op["ground_truth"] = str(each_label)
+            # each_op["predicted_label"] = str(each_pred_label)
             each_op["fg"] = str(fg_omega)
             each_op["bg"] = str(bg_omega)
             each_op["cam_ids"] = cam_ids
-            each_op["cam_weights"] = [str(weigh) for weigh in cam_weighs]
+            each_op["cam_weights"] = str(cam_weighs).replace(',', ' ')
             each_op["naive_omega"] = naive_omega
-            each_op["norm_cam_weights"] = [str(weigh / sum_cam_weigh) for weigh in cam_weighs]
+            each_op["norm_cam_weights"] = str([str(weigh / sum_cam_weigh) for weigh in cam_weighs]).replace(',', ' ')
             data_output_lst.append(each_op)
         return data_output_lst
