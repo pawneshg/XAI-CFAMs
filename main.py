@@ -27,19 +27,7 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
     # Evaluation Matrix Table Generation using test data 1 .
     eval_nn = EvaluationNN(model, test_data_1)
     naive_omega = eval_nn.eval_metric(activation_save_path=activation_save_path)  # todo: read matrix from csv file
-    # plot weights vs omega
-    # import matplotlib.pyplot as plt
-    # naive_omega_flt = naive_omega.flatten()
-    # weight_matrix_flt = weight_matrix.flatten()
-    # valid_indx = np.where(naive_omega_flt != -1)
-    #
-    # weight_matrix_ = weight_matrix_flt[valid_indx]
-    # naive_omega_ = naive_omega_flt[valid_indx]
-    # weight_matrix_sorted_ind = np.argsort(weight_matrix_)
-    # weight_matrix_ = weight_matrix_[weight_matrix_sorted_ind]
-    # naive_omega_ = naive_omega_[weight_matrix_sorted_ind]
-    # plt.scatter(weight_matrix_, naive_omega_)
-    # plt.show()
+
     # matrix = np.loadtxt(open("eval_matrix_30.csv", "rb"), delimiter=",", skiprows=1, usecols=range(1, 121)) #todo file name
     #
     # Predict the foreground and background percentage on test data 2.
