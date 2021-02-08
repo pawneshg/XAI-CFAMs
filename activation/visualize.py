@@ -39,7 +39,7 @@ class VisualizationTemplate:
                         title_n_results = str(next(titles)) + ' ' + omega
                         self.axes[row_ind, col_ind].set_title(title_n_results)
                     result_data = additional_data_map.get(img_name, [])
-                    result_data = str(result_data).replace(',', '\n')
+
                     self.axes[row_ind, self.ncols].text(0.0, 0.0, result_data, style='italic',fontsize=12,
                                                         bbox=dict(facecolor='red', alpha=0.5))
             except StopIteration:
