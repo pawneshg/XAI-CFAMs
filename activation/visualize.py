@@ -31,15 +31,18 @@ class VisualizationTemplate:
             try:
                 for row_ind in range(rows_per_page):
                     for col_ind in range(self.ncols):
-                        omega = str(next(results))
                         if col_ind == 0:
+                            omega = str(next(results))
                             img_name = omega
+                        else:
+                            omega = str(round(next(results), 2))
                         img = next(imgs)
                         self.axes[row_ind, col_ind].imshow(img)
                         title_n_results = str(next(titles)) + ' ' + omega
                         self.axes[row_ind, col_ind].set_title(title_n_results)
                     result_data = additional_data_map.get(img_name, [])
                     result_data = str(result_data).replace(',', '\n')
+                    result_data = str(result_data).replace(':', '\n')
                     self.axes[row_ind, self.ncols].text(0.0, 0.0, result_data, style='italic',fontsize=12,
                                                         bbox=dict(facecolor='red', alpha=0.5))
             except StopIteration:
@@ -165,7 +168,7 @@ class PredictCNNFgBgPercentage():
             sum_cam_weigh = 0
             for cam_id, _, _w in img_cams:
                 cam_weighs.append(self.weight_matrix[cam_id, each_pred_label])
-                naive_omega.append(str(self.eval_matrix[cam_id, each_pred_label]))
+                naive_omega.append(str(round(self.eval_matrix[cam_id, each_pred_label], 3)))
                 if self.eval_matrix[cam_id, each_pred_label] != -1.0:
                     fg_omega += self.weight_matrix[cam_id, each_pred_label]*self.eval_matrix[cam_id, each_pred_label]
                     cam_ids.append(str(cam_id))
@@ -175,11 +178,11 @@ class PredictCNNFgBgPercentage():
             each_op["image_name"] = str(img_name)
             # each_op["ground_truth"] = str(each_label)
             # each_op["predicted_label"] = str(each_pred_label)
-            each_op["fg"] = str(fg_omega)
-            each_op["bg"] = str(bg_omega)
-            each_op["cam_ids"] = cam_ids
-            each_op["cam_weights"] = str(cam_weighs).replace(',', ' ')
-            each_op["naive_omega"] = naive_omega
-            each_op["norm_cam_weights"] = str([str(weigh / sum_cam_weigh) for weigh in cam_weighs]).replace(',', ' ')
+            each_op["fg"] = str(round(fg_omega, 3))
+            each_op["bg"] = str(round(bg_omega, 3))
+            each_op["cam_ids"] = str(cam_ids).replace(',', ' ')
+            each_op["cam_weights"] = str([str(round(weigh, 3)) for weigh in cam_weighs]).replace(',', ' ')
+            each_op["naive_omega"] = str(naive_omega).replace(',', ' ')
+            each_op["norm_cam_weights"] = str([str(round(weigh / sum_cam_weigh, 2)) for weigh in cam_weighs]).replace(',', ' ')
             data_output_lst.append(each_op)
         return data_output_lst
