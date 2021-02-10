@@ -103,7 +103,7 @@ class EvaluationNN():
         # compute median
         for key, val in q_map.items():
             if len(val) < 5:
-                q_map[key] = 0
+                q_map[key] = -1
                 continue
             q_map[key] = np.median(val)
 
