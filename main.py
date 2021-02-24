@@ -24,6 +24,8 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
     weight_matrix = torch.transpose(weight_matrix, 0, 1).cpu().detach().numpy()
     df = pd.DataFrame(weight_matrix)
     df.to_csv(f'{activation_save_path}/weights.csv')
+
+
     # Evaluation Matrix Table Generation using test data 1 .
     eval_nn = EvaluationNN(model, test_data_1)
     naive_omega = eval_nn.eval_metric(activation_save_path=activation_save_path)  # todo: read matrix from csv file
@@ -31,7 +33,7 @@ def run(class_ids, activation_save_path, num_of_cams, num_of_sample_per_class):
     # matrix = np.loadtxt(open("eval_matrix_30.csv", "rb"), delimiter=",", skiprows=1, usecols=range(1, 121)) #todo file name
     #
     # Predict the foreground and background percentage on test data 2.
-
+    #################################
     # Validation data
     predictFgBg = PredictCNNFgBgPercentage(model, naive_omega, weight_matrix, test_data_1)
     eval_nn = EvaluationNN(model, test_data_1)

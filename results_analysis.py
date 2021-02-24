@@ -3,8 +3,8 @@ from scipy.stats import gaussian_kde
 import pandas as pd
 import numpy as np
 
-weights = pd.read_csv('./results_feb8/weights.csv').to_numpy()
-omega = pd.read_csv('./results_feb8/naive_omega.csv').to_numpy()
+weights = pd.read_csv('./results/weights.csv').to_numpy()
+omega = pd.read_csv('./results/naive_omega.csv').to_numpy()
 weights = weights[:, 1:]
 omega = omega[:, 1:]
 
@@ -32,4 +32,4 @@ y_hist = fig.add_subplot(grid[1:, -1], xticklabels=[], sharey=main_ax)
 y_hist.hist(omega_, histtype='stepfilled', orientation='horizontal', density=False)
 y_hist.invert_yaxis()
 
-plt.savefig("./results_feb8/weights_vs_omega.png")
+plt.savefig("./results/weights_vs_omega.png")
