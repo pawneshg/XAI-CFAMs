@@ -15,6 +15,8 @@ class VisualizationTemplate:
         # self.fig, self.axes = plt.subplots(figsize=self.figsize, ncols=self.ncols, nrows=self.nrows,
         #                                    squeeze=False, constrained_layout=True)
         self.pdf = PdfPages(save_path)
+        self.ground_omega = []
+        self.predicted_omega = []
 
     def base_vis_template(self, images, titles, poly_intersection, additional_data):
         """ Visualization of docs """
@@ -23,24 +25,36 @@ class VisualizationTemplate:
         imgs = iter(images)
         titles = iter(titles)
         results = iter(poly_intersection)
-        additional_data_map = {each_data["image_name"]: each_data for each_data in additional_data}
+        additional_data_map = {each_data["image_name"]: each_data for each_data in additional_data.get("to_print", [])}
+        computational_data_map = {each_data["image_name"]: each_data for each_data in additional_data.get("to_compute", [])}
+
         for num_rows_per_page in range(0, self.nrows, 5):
             self.fig, self.axes = plt.subplots(figsize=self.figsize, ncols=self.ncols+1, nrows=5,
                                                squeeze=False, constrained_layout=True)
             rows_per_page = 5
+
             try:
                 for row_ind in range(rows_per_page):
+                    _ground_omega = []
                     for col_ind in range(self.ncols):
                         if col_ind == 0:
                             omega = str(next(results))
                             img_name = omega
                         else:
-                            omega = str(round(next(results), 2))
+                            omega = next(results)
+                            _ground_omega.append(omega)
+                            omega = str(round(omega, 2))
+
                         img = next(imgs)
                         self.axes[row_ind, col_ind].imshow(img)
                         title_n_results = str(next(titles)) + ' ' + omega
                         self.axes[row_ind, col_ind].set_title(title_n_results)
                     result_data = additional_data_map.get(img_name, [])
+                    result_data_comp = computational_data_map.get(img_name, [])
+
+                    if result_data_comp and result_data_comp.get('naive_omega'):
+                        self.ground_omega.extend(_ground_omega)
+                        self.predicted_omega.extend(result_data_comp.get('naive_omega', []))
                     result_data = str(result_data).replace(',', '\n')
                     result_data = str(result_data).replace(':', '\n')
                     self.axes[row_ind, self.ncols].text(0.0, 0.0, result_data, style='italic',fontsize=12,
@@ -55,12 +69,15 @@ class VisualizationTemplate:
 
 
 
+
 class EvaluationNN():
     def __init__(self, model, test_data):
 
         self.result_data = ResultsData(model=model, data_to_visualize_func=test_data, num_of_cams=cf.num_of_cams,
                                        class_ids=cf.class_ids, val_data_dir=cf.val_data_dir)
         self.data_to_visualize, self.labels_for_vis_data, self.poly_intersection = None, None, None
+        self.ground_omega = []
+        self.predicted_omega = []
 
     def coco_activation_map_visualization(self, class_ids, activation_save_path, num_of_cams, results):
         """ Visualize the activation maps of a prediction model. """
@@ -74,8 +91,22 @@ class EvaluationNN():
         vis_temp = VisualizationTemplate(fig_size, ncols, nrows, f"{activation_save_path}/final_results.pdf")
 
         is_success = vis_temp.base_vis_template(self.data_to_visualize, self.labels_for_vis_data, self.poly_intersection, results)
-
+        self.ground_omega = vis_temp.ground_omega
+        self.predicted_omega = vis_temp.predicted_omega
         return is_success
+
+    def compute_mean_square_error(self):
+        """calculate rms error """
+        count_ = 0
+        total_err = 0
+        for values in zip(*[iter(self.ground_omega)]*cf.num_of_cams,
+                          *[iter(self.predicted_omega)]*cf.num_of_cams):
+            sq_sum = 0
+            for grd, pred in zip(values[:cf.num_of_cams], values[cf.num_of_cams:]):
+                sq_sum += (grd - pred)**2
+            total_err += sq_sum / cf.num_of_cams
+            count_ += 1
+        return total_err / count_
 
     def eval_metric(self, activation_save_path):
         ground_truths, prediction, q_measure = \
@@ -168,7 +199,7 @@ class PredictCNNFgBgPercentage():
             sum_cam_weigh = 0
             for cam_id, _, _w in img_cams:
                 cam_weighs.append(self.weight_matrix[cam_id, each_pred_label])
-                naive_omega.append(str(round(self.eval_matrix[cam_id, each_pred_label], 3)))
+                naive_omega.append(self.eval_matrix[cam_id, each_pred_label])
                 if self.eval_matrix[cam_id, each_pred_label] != -1.0:
                     fg_omega += self.weight_matrix[cam_id, each_pred_label]*self.eval_matrix[cam_id, each_pred_label]
                     cam_ids.append(str(cam_id))
@@ -176,13 +207,11 @@ class PredictCNNFgBgPercentage():
             fg_omega = fg_omega/sum_cam_weigh
             bg_omega = 1 - fg_omega
             each_op["image_name"] = str(img_name)
-            # each_op["ground_truth"] = str(each_label)
-            # each_op["predicted_label"] = str(each_pred_label)
-            each_op["fg"] = str(round(fg_omega, 3))
-            each_op["bg"] = str(round(bg_omega, 3))
-            each_op["cam_ids"] = str(cam_ids).replace(',', ' ')
-            each_op["cam_weights"] = str([str(round(weigh, 3)) for weigh in cam_weighs]).replace(',', ' ')
-            each_op["naive_omega"] = str(naive_omega).replace(',', ' ')
-            each_op["norm_cam_weights"] = str([str(round(weigh / sum_cam_weigh, 2)) for weigh in cam_weighs]).replace(',', ' ')
+            each_op["fg"] = fg_omega
+            each_op["bg"] = bg_omega
+            each_op["cam_ids"] = cam_ids
+            each_op["cam_weights"] = cam_weighs
+            each_op["naive_omega"] = naive_omega
+            each_op["norm_cam_weights"] = [weigh / sum_cam_weigh for weigh in cam_weighs]
             data_output_lst.append(each_op)
         return data_output_lst
